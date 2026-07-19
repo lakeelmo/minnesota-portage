@@ -50,9 +50,9 @@ Ink/watercolor-ish plates generated and aliased to data IDs:
 
 | Role | Files |
 |------|--------|
-| Map BG | `map-st-croix.png` (also copied → `trail-map-bg.png`) |
-| Stops | `stop-water-roads.png`, `stop-glacial-lakes.png`, `stop-maple-sugaring.png`, `stop-manoomin.png`, `stop-portage-carry.png`, `stop-pictographs.png`, `stop-hunt-forage.png`, `stop-pipestone.png`, `stop-bdote.png`, `stop-fur-trade.png`, `stop-dig-site.png`, `stop-headwaters.png`, `stop-finale.png` (+ duplicates with shorter names) |
-| Chars | `char-makoons.png`, `char-waase.png`, plus others (`char-ziigwan`, `migizi`, `wiyaka`, `cetan`, `tasina`, `rivercloud`, and older experimental names) |
+| Map BG | `map-st-croix.jpg` (also `trail-map-bg.jpg`) |
+| Stops | `stop-*.jpg` matching `js/data.js` `art:` paths |
+| Chars | `char-{id}.jpg` for the 8 playable IDs |
 
 **Art consistency problem:** some portraits are true ink+wash; others are leftover modern/AI styles. User wants **one consistent ink + watercolor style** across all characters and stops.
 
@@ -96,9 +96,10 @@ Ink/watercolor-ish plates generated and aliased to data IDs:
 1. ~~Unify all art~~ — 8 playable portraits now ink+watercolor (ziigwan/wiyaka/tasina/rivercloud regenerated 2026-07-19).
 2. ~~Polish map readability~~ — stronger edges/nodes/glow; duplicate CSS shell removed.
 3. ~~Smoke-test loop~~ — verified Begin → setup → traveler → intro → quiz → map travel → branch (foe markers visible) → stop art in sheets. `overflow:hidden`, no page scroll.
-4. **Commit + push + Pages** when ready (local still ahead of published SPA until push).
-5. Optional: trim unused legacy `assets/char-*.png` outfit/old-name portraits to shrink the repo.
-6. Optional: if user wants named historical figures instead of fictional valley youth, research carefully.
+4. **Optional cleanup:** delete unused local legacy `assets/char-*.png` / duplicate stop PNGs (not in git).
+5. Optional: if user wants named historical figures instead of fictional valley youth, research carefully.
+
+**Published:** `main` @ `9a3f3cb` — https://lakeelmo.github.io/minnesota-portage/
 
 ---
 
