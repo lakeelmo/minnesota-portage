@@ -4,14 +4,20 @@ An educational adventure for ages **9–11**. Carry a birchbark **Story Bundle**
 
 A *portage* is carrying a canoe over land between lakes — here you also carry living knowledge with care.
 
-## Play
+## Play online
+
+**[Play Minnesota Portage →](https://lakeelmo.github.io/minnesota-portage/)**
+
+Repo: [github.com/lakeelmo/minnesota-portage](https://github.com/lakeelmo/minnesota-portage)
+
+## Play locally
 
 ```bash
 cd "Minnesota Trail"
 python3 -m http.server 8080
 ```
 
-Open [http://localhost:8080](http://localhost:8080).
+Then open [http://localhost:8080](http://localhost:8080).
 
 ## Your quest
 
