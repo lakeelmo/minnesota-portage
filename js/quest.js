@@ -15,12 +15,12 @@ export const QUEST = {
   stoneEmoji: "🪨",
   goalStops: "Council of Stories",
   short:
-    "Paddle and portage the St. Croix valley's water roads. Choose your path, dodge trouble, and gather Story Stones of living Dakota and Ojibwe knowledge on the way to the Council of Stories.",
+    "Paddle up to two hops at a time along the St. Croix. Follow migrating animals, dodge predators, and gather Story Stones of living Dakota and Ojibwe knowledge.",
   briefing: (playerName, companionName) =>
     `${playerName}, the Council of Stories has trusted your crew with a birchbark Story Bundle.
-A portage means carrying a canoe between waters — and along the St. Croix you'll carry stories the same way.
-Tap a glowing stop on the map to travel. Some paths have trouble on them, so choose your route with care.
-At each stop, listen, learn, and earn a Story Stone. Keep your party healthy and reach the Council.
+Each turn you can paddle up to <strong>2 hops</strong> — predators move 2 hops too, so plan your route!
+Follow 🦌 herds for snacks. Dodge 🐺 on the map. A long paddle can skip a stop to escape trouble.
+At each stop, listen, learn, and earn a Story Stone. Reach the Council with your Bundle full.
 ${companionName ? `${companionName} will paddle beside you.` : "You travel for the next listeners."}`,
 };
 

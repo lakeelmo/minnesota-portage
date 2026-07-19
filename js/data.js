@@ -322,6 +322,65 @@ export function shuffle(arr) {
   return a;
 }
 
+/** Shuffle multiple-choice options; returns { choices, answer } with a fresh correct index. */
+export function shuffleChoices(choices, correctIndex) {
+  const indexed = choices.map((text, i) => ({ text, correct: i === correctIndex }));
+  const mixed = shuffle(indexed);
+  return {
+    choices: mixed.map((c) => c.text),
+    answer: mixed.findIndex((c) => c.correct),
+  };
+}
+
+/** Undirected neighbors for wildlife chase (player travel stays forward-only). */
+export function undirectedNeighbors(stopId) {
+  const stop = getStop(stopId);
+  const out = stop?.links || [];
+  const inbound = TRAIL_STOPS.filter((s) => (s.links || []).includes(stopId)).map((s) => s.id);
+  return [...new Set([...out, ...inbound])];
+}
+
+/** Place mobile predators ahead on the valley map (kid chase tokens). */
+export function spawnPredators(difficultyId) {
+  const hard = difficultyId === "hard";
+  const medium = difficultyId === "medium";
+  const count = hard ? 2 : medium ? 2 : 1;
+  const dens = shuffle(["glacial-lakes", "pictographs", "pipestone", "dig-site", "portage-carry"]);
+  const kinds = [
+    { emoji: "🐺", name: "Hungry Wolf" },
+    { emoji: "🐻", name: "Curious Bear" },
+    { emoji: "😼", name: "Bobcat" },
+  ];
+  return dens.slice(0, count).map((at, i) => ({
+    id: `pred-${i}`,
+    at,
+    emoji: kinds[i % kinds.length].emoji,
+    name: kinds[i % kinds.length].name,
+  }));
+}
+
+/** Migratory animals to follow for food and friends. */
+export function spawnMigrators() {
+  return [
+    {
+      id: "mig-deer",
+      emoji: "🦌",
+      name: "Deer herd",
+      at: "maple-sugaring",
+      route: ["maple-sugaring", "manoomin", "pictographs", "hunt-forage", "bdote", "fur-trade", "headwaters"],
+      gift: "venison",
+    },
+    {
+      id: "mig-geese",
+      emoji: "🪿",
+      name: "Migrating geese",
+      at: "glacial-lakes",
+      route: ["glacial-lakes", "manoomin", "portage-carry", "hunt-forage", "pipestone", "fur-trade", "dig-site"],
+      gift: "hazelnuts",
+    },
+  ];
+}
+
 export function personalityFlavor(name, personality) {
   if (!personality) return "";
   const p = personality.toLowerCase();

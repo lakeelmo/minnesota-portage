@@ -9,12 +9,14 @@ import {
   pickRandom,
   TRAIL_STOPS,
   assignFoeNodes,
+  spawnPredators,
+  spawnMigrators,
 } from "./data.js";
 import { CLOTHING, getClothing } from "./characters.js";
 import { makeCompanionState, pickCompanion } from "./companions.js";
 import { getAnimal } from "./animals.js";
 
-const SAVE_KEY = "minnesota-portage-v4";
+const SAVE_KEY = "minnesota-portage-v5";
 
 export function createEmptySetup() {
   return {
@@ -75,7 +77,11 @@ export function startRun(setup) {
     start,
     stops: TRAIL_STOPS,
     visited: [], // stop ids the party has completed
-    foeNodes: assignFoeNodes(setup.difficulty, setup.players.length), // stop ids guarded by a foe
+    skipped: [], // stop ids paddled past (2-hop shortcut)
+    foeNodes: assignFoeNodes(setup.difficulty, setup.players.length), // legacy branch foe tokens
+    predators: spawnPredators(setup.difficulty), // mobile chase tokens
+    migrators: spawnMigrators(), // herds to follow for food
+    paddleRange: 2, // player & predators move up to this many hops per turn
     activePlayer: 0,
     score: 0,
     learned: [],

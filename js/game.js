@@ -8,6 +8,9 @@ import {
   getWeapon,
   pickRandom,
   shuffle,
+  shuffleChoices,
+  undirectedNeighbors,
+  getStop,
 } from "./data.js";
 import { CLOTHING, getClothing } from "./characters.js";
 import {
@@ -34,6 +37,7 @@ import {
   unflipMismatches,
   createRiceGame,
   catchRicePod,
+  tickRiceGame,
 } from "./minigames.js";
 import { ARCADE_META, isArcadeType } from "./arcade.js";
 import { QUEST } from "./quest.js";
@@ -73,11 +77,11 @@ export function arriveAtStop(state) {
     return makeFoeEncounter(next);
   }
 
-  // Optional roadside helper / campfire trivia (never on the finale).
-  const helperBoost = state.animalFriendPower ? 0.12 : 0;
+  // Optional roadside helper / campfire trivia (never on the finale) — keep light so map chase stays front-and-center.
+  const helperBoost = state.animalFriendPower ? 0.08 : 0;
   const roll = Math.random();
-  if (stop.type !== "finale" && roll < 0.22 + helperBoost) return makeHelperEncounter(next);
-  if (stop.type !== "finale" && roll < 0.34 + helperBoost) return makeTriviaEncounter(next);
+  if (stop.type !== "finale" && roll < 0.14 + helperBoost) return makeHelperEncounter(next);
+  if (stop.type !== "finale" && roll < 0.22 + helperBoost) return makeTriviaEncounter(next);
 
   return makeStopEncounter(next);
 }
@@ -100,9 +104,16 @@ function makeFoeEncounter(state) {
 }
 
 function makeTriviaEncounter(state) {
+  const raw = pickRandom(QUIZ_BANK);
+  const mixed = shuffleChoices(raw.choices, raw.a);
   return {
     ...state,
-    encounter: { kind: "trivia", title: "Campfire Trivia!", trivia: pickRandom(QUIZ_BANK), answered: false },
+    encounter: {
+      kind: "trivia",
+      title: "Campfire Trivia!",
+      trivia: { ...raw, choices: mixed.choices, a: mixed.answer },
+      answered: false,
+    },
   };
 }
 
@@ -127,7 +138,7 @@ export function resolveHelper(state) {
 export function resolveFoe(state, choice) {
   const diff = DIFFICULTIES[state.difficulty];
   const foe = state.encounter.foe;
-  let next = { ...state, encounter: null };
+  let next = clearPredatorHere({ ...state, encounter: null });
 
   if (choice === "brave") {
     return {
@@ -183,7 +194,7 @@ function makeMathChallenge(state) {
 export function resolveFoeMath(state, choiceIndex) {
   const diff = DIFFICULTIES[state.difficulty];
   const enc = state.encounter;
-  let next = { ...state, encounter: null };
+  let next = clearPredatorHere({ ...state, encounter: null });
 
   if (choiceIndex === enc.answer) {
     next = addScore(next, 20, "Math dodge success! The foe flees.");
@@ -222,12 +233,23 @@ function makeStopEncounter(state) {
   }
 
   if (stop.type === "quiz") {
-    // fresh quiz — reset companion free tip
+    // fresh quiz — shuffle choices so the correct answer isn't always first
     const companion = state.companion ? { ...state.companion, tipUsedThisQuiz: false } : null;
+    const mixed = shuffleChoices(stop.choices, stop.answer);
     return {
       ...state,
       companion,
-      encounter: { kind: "quiz", stop, title: stop.name, answered: false, hintUsed: false, eliminated: [], tip: "" },
+      encounter: {
+        kind: "quiz",
+        stop,
+        title: stop.name,
+        choices: mixed.choices,
+        answer: mixed.answer,
+        answered: false,
+        hintUsed: false,
+        eliminated: [],
+        tip: "",
+      },
     };
   }
   if (stop.type === "minigame") return startMinigame(state, stop);
@@ -254,7 +276,7 @@ function startMinigame(state, stop) {
     const pairs = Math.max(3, diff.memoryPairs - (state.puzzleMaster ? 1 : 0));
     game = createMemoryGame({ pairs });
   } else {
-    game = createRiceGame({ goal: state.puzzleMaster ? 5 : 6 });
+    game = createRiceGame({ goal: state.puzzleMaster ? 6 : 8, ticks: state.puzzleMaster ? 50 : 40 });
   }
   return { ...state, encounter: { kind: "minigame", stop, title: stop.name, game } };
 }
@@ -265,7 +287,8 @@ export function answerQuiz(state, choiceIndex) {
   const enc = state.encounter;
   const stop = enc.stop;
   const diff = DIFFICULTIES[state.difficulty];
-  const correct = choiceIndex === stop.answer;
+  const answer = enc.answer ?? stop.answer;
+  const correct = choiceIndex === answer;
   const playerName = getActivePlayer(state).name;
   let next = {
     ...state,
@@ -304,7 +327,9 @@ export function useCompanionHelp(state) {
   const enc = state.encounter;
   if (!c || c.helpsLeft <= 0 || enc.kind !== "quiz" || enc.answered) return state;
   const stop = enc.stop;
-  const wrongIdx = stop.choices.map((_, i) => i).filter((i) => i !== stop.answer && !(enc.eliminated || []).includes(i));
+  const choices = enc.choices || stop.choices;
+  const answer = enc.answer ?? stop.answer;
+  const wrongIdx = choices.map((_, i) => i).filter((i) => i !== answer && !(enc.eliminated || []).includes(i));
   const elim = shuffle(wrongIdx).slice(0, 2);
   return {
     ...state,
@@ -350,6 +375,7 @@ export function handleMinigameAction(state, action) {
   else if (action.type === "memory-flip") game = flipMemory(game, action.cardId);
   else if (action.type === "memory-unflip") game = unflipMismatches(game);
   else if (action.type === "rice-catch") game = catchRicePod(game, action.podId);
+  else if (action.type === "rice-tick") game = tickRiceGame(game);
   return { ...state, encounter: { ...enc, game } };
 }
 
@@ -418,51 +444,79 @@ function maybeUnlockAnimal(state, baseChance) {
   return state;
 }
 
-/* ─────────────── Map graph travel ─────────────── */
+/* ─────────────── Map graph travel (2-hop strategy + wildlife) ─────────────── */
 
-/** Can the party paddle from the current node to `targetIndex` right now? */
+const PADDLE_RANGE = 2;
+
+/** Shortest forward path (1–maxHops) to an unvisited target.
+ * Intermediate unvisited nodes may be skipped (strategic long paddle). */
+export function pathToStop(state, targetIndex, maxHops = PADDLE_RANGE) {
+  const stops = state.stops;
+  const target = stops[targetIndex];
+  const startId = stops[state.stopIndex]?.id;
+  if (!target || !startId || targetIndex === state.stopIndex) return null;
+
+  const finished = new Set([...(state.visited || []), ...(state.skipped || [])]);
+  if (finished.has(target.id)) return null;
+
+  const queue = [{ id: startId, path: [startId] }];
+  const seen = new Set([`${startId}|0`]);
+
+  while (queue.length) {
+    const { id, path } = queue.shift();
+    const hops = path.length - 1;
+    if (hops >= maxHops) continue;
+    const node = getStop(id) || stops.find((s) => s.id === id);
+    for (const nextId of node?.links || []) {
+      const nextPath = [...path, nextId];
+      const nextHops = nextPath.length - 1;
+      const key = `${nextId}|${nextHops}`;
+      if (nextId === target.id && nextHops >= 1 && nextHops <= maxHops) return nextPath;
+      if (nextHops >= maxHops) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      queue.push({ id: nextId, path: nextPath });
+    }
+  }
+  return null;
+}
+
+/** Can the party paddle to target within paddleRange hops? */
 export function canTravelTo(state, targetIndex) {
-  if (!state || state.gameOver || state.encounter) return false; // no travel with a modal open
-  const cur = state.stops[state.stopIndex];
-  const target = state.stops[targetIndex];
-  if (!cur || !target || targetIndex === state.stopIndex) return false;
-  if ((state.visited || []).includes(target.id)) return false;
-  return (cur.links || []).includes(target.id);
+  if (!state || state.gameOver || state.encounter) return false;
+  return !!pathToStop(state, targetIndex, state.paddleRange || PADDLE_RANGE);
 }
 
-/** Reachable (adjacent + unvisited) node indices from the current node. */
+/** Reachable unvisited destinations within paddle range. */
 export function reachableStops(state) {
-  const cur = state.stops[state.stopIndex];
-  if (!cur) return [];
-  return (cur.links || [])
-    .map((id) => state.stops.findIndex((s) => s.id === id))
-    .filter((i) => i >= 0 && !(state.visited || []).includes(state.stops[i].id));
+  if (!state?.stops || state.stopIndex < 0) return [];
+  const range = state.paddleRange || PADDLE_RANGE;
+  return state.stops
+    .map((_, i) => i)
+    .filter((i) => i !== state.stopIndex && canTravelTo(state, i));
 }
 
-/** Travel/hunger/sickness costs applied while paddling between nodes. */
-function applyTravelCosts(state) {
+function applyTravelCosts(state, hops = 1) {
   const diff = DIFFICULTIES[state.difficulty];
-  const cost = travelCost(state);
-  let next = applyDamage(state, 0, cost, `Paddled onward (−${cost} energy).`);
+  const base = travelCost(state);
+  const cost = Math.max(1, Math.round(base * (0.65 + hops * 0.35)));
+  let next = applyDamage(state, 0, cost, `Paddled ${hops} hop${hops > 1 ? "s" : ""} (−${cost} energy).`);
 
-  // Hunger drains rations; empty rations hurt.
-  const rations = clamp(next.rations - diff.hungerDrain, 0, next.maxRations);
+  const rations = clamp(next.rations - diff.hungerDrain * hops, 0, next.maxRations);
   next = { ...next, rations };
   if (rations <= 0) {
     next = applyDamage(next, 8, 0, "Empty stomachs! Health dips — find food soon.");
     if (Math.random() < 0.5 + diff.foodFailBoost) next = applyAilment(next, "tummy-ache", "Hunger brought on a tummy ache.");
   }
 
-  // Active ailments sap strength while traveling.
   for (const ail of next.ailments) {
     const a = getAilment(ail.id);
     if (a && (a.drainHealth || a.drainEnergy)) {
-      next = applyDamage(next, a.drainHealth, a.drainEnergy, `${a.emoji} ${a.name} saps a little strength.`);
+      next = applyDamage(next, a.drainHealth * hops, a.drainEnergy * hops, `${a.emoji} ${a.name} saps a little strength.`);
       if (next.gameOver) return next;
     }
   }
 
-  // Chance to catch something new on the trail.
   if (!next.gameOver && Math.random() < diff.sickChance) {
     const pool = AILMENTS.filter((a) => !next.ailments.some((x) => x.id === a.id));
     if (pool.length) next = applyAilment(next, pickRandom(pool).id);
@@ -472,14 +526,144 @@ function applyTravelCosts(state) {
   return next;
 }
 
-/** Player tapped an adjacent node on the map. Pay travel costs and arrive. */
+/** Move predators up to `steps` hops toward the player along the undirected valley graph. */
+function movePredators(state, steps = PADDLE_RANGE) {
+  const playerId = state.stops[state.stopIndex]?.id;
+  if (!playerId || !(state.predators || []).length) return state;
+
+  const predators = state.predators.map((p) => {
+    let at = p.at;
+    for (let s = 0; s < steps; s++) {
+      if (at === playerId) break;
+      const nextHop = stepToward(at, playerId);
+      if (!nextHop || nextHop === at) break;
+      at = nextHop;
+    }
+    return { ...p, at };
+  });
+  return { ...state, predators };
+}
+
+function stepToward(fromId, goalId) {
+  if (fromId === goalId) return fromId;
+  // BFS one best next hop
+  const queue = [fromId];
+  const prev = new Map([[fromId, null]]);
+  while (queue.length) {
+    const id = queue.shift();
+    if (id === goalId) break;
+    for (const n of undirectedNeighbors(id)) {
+      if (prev.has(n)) continue;
+      prev.set(n, id);
+      queue.push(n);
+    }
+  }
+  if (!prev.has(goalId)) {
+    // wander randomly if unreachable
+    const opts = undirectedNeighbors(fromId);
+    return opts.length ? pickRandom(opts) : fromId;
+  }
+  // Walk back to find first step from fromId
+  let cur = goalId;
+  while (prev.get(cur) && prev.get(cur) !== fromId) cur = prev.get(cur);
+  return cur;
+}
+
+function moveMigrators(state, steps = 1) {
+  const migrators = (state.migrators || []).map((m) => {
+    const route = m.route || [];
+    if (!route.length) return m;
+    let idx = Math.max(0, route.indexOf(m.at));
+    idx = (idx + steps) % route.length;
+    return { ...m, at: route[idx] };
+  });
+  return { ...state, migrators };
+}
+
+function predatorOnPlayer(state) {
+  const here = state.stops[state.stopIndex]?.id;
+  return (state.predators || []).find((p) => p.at === here) || null;
+}
+
+function migratorOnPlayer(state) {
+  const here = state.stops[state.stopIndex]?.id;
+  return (state.migrators || []).filter((m) => m.at === here);
+}
+
+/** Player tapped a glowing destination (1–2 hops). Predators then move 2. */
 export function mapTravel(state, targetIndex) {
-  if (!canTravelTo(state, targetIndex)) return state;
-  let next = applyTravelCosts(state);
+  const range = state.paddleRange || PADDLE_RANGE;
+  const path = pathToStop(state, targetIndex, range);
+  if (!path || path.length < 2) return state;
+
+  const hops = path.length - 1;
+  let next = applyTravelCosts(state, hops);
   if (next.gameOver) return next;
+
+  // Intermediate unvisited nodes along a 2-hop paddle are skipped (dodge tradeoff).
+  const skipped = [...(next.skipped || [])];
+  const finished = new Set([...(next.visited || []), ...skipped]);
+  for (let i = 1; i < path.length - 1; i++) {
+    const mid = path[i];
+    if (!finished.has(mid) && !skipped.includes(mid)) {
+      skipped.push(mid);
+      next = { ...next, log: [...next.log, `Skipped ${getStop(mid)?.name || mid} on a long paddle.`] };
+    }
+  }
+
   next = nextPlayer(next);
-  next = { ...next, stopIndex: targetIndex, _stoneThisStop: false };
+  next = {
+    ...next,
+    stopIndex: targetIndex,
+    skipped,
+    _stoneThisStop: false,
+    log: [...next.log, hops > 1 ? `Long paddle (${hops} hops)!` : `Paddled to ${next.stops[targetIndex].name}.`],
+  };
+
+  // Wildlife turn: herds drift, predators chase (same range as the player).
+  next = moveMigrators(next, 1);
+  next = movePredators(next, range);
+
+  const herds = migratorOnPlayer(next);
+  for (const herd of herds) {
+    next = addItem(next, herd.gift || "hazelnuts");
+    next = addScore(next, 12, `Followed the ${herd.name}!`);
+    next = { ...next, log: [...next.log, `${herd.emoji} You met the ${herd.name} — trail snacks!`] };
+    next = maybeUnlockAnimal(next, 0.45);
+  }
+
+  const pred = predatorOnPlayer(next);
+  if (pred) {
+    // Face the predator with the existing foe system, flavored by this animal.
+    return {
+      ...next,
+      enemiesFaced: next.enemiesFaced + 1,
+      encounter: {
+        kind: "foe",
+        foe: {
+          name: pred.name,
+          line: `The ${pred.name} caught your scent after that paddle! Face it, scare it, or pay a toll.`,
+          effect: pickRandom(["health", "energy", "both"]),
+          ailment: Math.random() < 0.35 ? "tired-legs" : null,
+        },
+        title: `${pred.emoji} ${pred.name} blocks the path!`,
+        text: `The ${pred.name} caught your scent after that paddle! Face it, scare it, or pay a toll.`,
+        predatorId: pred.id,
+      },
+    };
+  }
+
   return arriveAtStop(next);
+}
+
+/** After beating a predator encounter, clear that token from the player's node. */
+export function clearPredatorHere(state) {
+  const here = state.stops[state.stopIndex]?.id;
+  if (!here) return state;
+  return {
+    ...state,
+    predators: (state.predators || []).filter((p) => p.at !== here),
+  };
 }
 
 /** Finished a stop's content — mark it visited and return to the map (no auto-advance). */
@@ -488,7 +672,10 @@ function completeStop(state) {
   const visited = stop && !(state.visited || []).includes(stop.id)
     ? [...(state.visited || []), stop.id]
     : state.visited || [];
-  return { ...state, encounter: null, visited, _stoneThisStop: false };
+  // Soft wildlife drift between stops so the map feels alive.
+  let next = { ...state, encounter: null, visited, _stoneThisStop: false };
+  next = moveMigrators(next, 1);
+  return next;
 }
 
 /* ─────────────── Camp: rest + medicine ─────────────── */

@@ -193,8 +193,12 @@ export function renderTrailMap(state) {
   const cur = state.stopIndex;
   const visited = state.visited || [];
   const foeNodes = state.foeNodes || [];
+  const predators = state.predators || [];
+  const migrators = state.migrators || [];
   const reachIdx = state.encounter ? [] : reachableStops(state);
   const reachIds = new Set(reachIdx.map((i) => stops[i].id));
+  const predAt = new Set(predators.map((p) => p.at));
+  const migAt = new Map(migrators.map((m) => [m.at, m]));
 
   // Forward-link edges.
   const edgeSvg = stops.flatMap((s) =>
@@ -211,16 +215,19 @@ export function renderTrailMap(state) {
     const isCur = i === cur;
     const done = visited.includes(s.id);
     const canGo = reachIds.has(s.id);
-    const foe = foeNodes.includes(s.id) && !done;
-    const revealed = isCur || done || canGo;
+    const foe = (foeNodes.includes(s.id) || predAt.has(s.id)) && !done;
+    const herd = migAt.get(s.id);
+    const revealed = isCur || done || canGo || predAt.has(s.id) || !!herd;
     let cls = "map-node";
     if (done) cls += " done";
     else if (isCur) cls += " current";
     else if (canGo) cls += " reachable";
     else cls += " locked";
     if (foe) cls += " has-foe";
+    if (herd) cls += " has-herd";
     if (s.type === "finale") cls += " finale";
     const label = revealed ? shortLabel(s.name) : "???";
+    const pred = predators.find((p) => p.at === s.id);
     return `
       <g class="${cls}" data-node="${i}" ${canGo ? `data-travel="${i}"` : ""} role="button"
          aria-label="${escapeAttr(revealed ? s.name : "Unknown stop")}${canGo ? " — tap to travel" : ""}"
@@ -229,7 +236,8 @@ export function renderTrailMap(state) {
         <circle class="disc" r="34" />
         <text class="map-icon" y="12">${revealed ? s.icon || "•" : "❔"}</text>
         ${done ? `<text class="map-check" x="27" y="-20">✔</text>` : ""}
-        ${foe ? `<text class="map-foe" x="30" y="36">😾</text>` : ""}
+        ${pred ? `<text class="map-foe" x="30" y="36">${pred.emoji}</text>` : foe ? `<text class="map-foe" x="30" y="36">😾</text>` : ""}
+        ${herd && !pred ? `<text class="map-herd" x="-30" y="36">${herd.emoji}</text>` : ""}
         ${revealed ? `<text class="map-label" y="64">${label}</text>` : ""}
       </g>`;
   }).join("");
@@ -307,7 +315,7 @@ export function renderTrail(state, handlers, ui = {}) {
   const coach = hasEnc
     ? ""
     : reach.length
-      ? "🛶 Tap a glowing stop to paddle there"
+      ? "🛶 Up to 2 hops · follow 🦌 · dodge 🐺"
       : "Choose your next move…";
 
   const node = el(`
@@ -556,22 +564,24 @@ function fillEncounter(story, panel, state, handlers) {
 
   if (enc.kind === "quiz") {
     const stop = enc.stop;
+    const choices = enc.choices || stop.choices;
+    const answer = enc.answer ?? stop.answer;
     story.innerHTML = storyWithBeat(state, stop);
     const elim = enc.eliminated || [];
     panel.innerHTML = `
       ${stopArt(stop)}
       <h2>${stop.name}</h2>
-      <div class="learn-box"><strong>Trail fact:</strong> ${linkNativeWords(stop.learn)}</div>
+      <div class="learn-box compact"><strong>Trail fact:</strong> ${linkNativeWords(stop.learn)}</div>
       <p class="quiz-q"><strong>${active.name}</strong>, ${stop.question}</p>
       ${enc.hintUsed ? `<p class="hint">💡 Hint: ${stop.hint}</p>` : ""}
       ${enc.tip ? `<p class="companion-tip">${enc.tip}</p>` : ""}
       ${enc.helpNote && !enc.answered ? `<p class="companion-tip">${enc.helpNote}</p>` : ""}
       <div class="quiz-options">
-        ${stop.choices.map((c, i) => {
+        ${choices.map((c, i) => {
           let cls = "btn quiz-option";
           const crossed = elim.includes(i) && !enc.answered;
           if (enc.answered) {
-            if (i === stop.answer) cls += " correct";
+            if (i === answer) cls += " correct";
             else if (i === enc.picked) cls += " wrong";
           }
           if (crossed) cls += " crossed";
@@ -580,9 +590,9 @@ function fillEncounter(story, panel, state, handlers) {
       </div>
       ${enc.answered && enc.companionReact ? `<p class="companion-tip">${enc.companionReact}</p>` : ""}
       <div class="btn-row">
-        ${!enc.answered && state.hintsLeft > 0 && !enc.hintUsed ? `<button class="btn btn-purple" data-a="hint">💡 Time Echo hint (${state.hintsLeft})</button>` : ""}
-        ${!enc.answered && state.companion && state.companion.helpsLeft > 0 ? `<button class="btn btn-blue" data-a="help">${state.companion.name}: cross out 2 (${state.companion.helpsLeft})</button>` : ""}
-        ${!enc.answered && state.companion && !state.companion.tipUsedThisQuiz ? `<button class="btn btn-ghost" data-a="tip">${state.companion.name}: free tip</button>` : ""}
+        ${!enc.answered && state.hintsLeft > 0 && !enc.hintUsed ? `<button class="btn btn-purple" data-a="hint">💡 Hint (${state.hintsLeft})</button>` : ""}
+        ${!enc.answered && state.companion && state.companion.helpsLeft > 0 ? `<button class="btn btn-blue" data-a="help">${state.companion.name}: −2</button>` : ""}
+        ${!enc.answered && state.companion && !state.companion.tipUsedThisQuiz ? `<button class="btn btn-ghost" data-a="tip">Tip</button>` : ""}
         ${enc.answered ? `<button class="btn btn-primary" data-a="next">Add Story Stone →</button>` : ""}
       </div>
     `;
@@ -607,12 +617,14 @@ function fillEncounter(story, panel, state, handlers) {
     const arcade = isArcadeType(game.type);
     const meta = arcade ? ARCADE_META[game.type] : null;
     const eqW = getWeapon(state.equippedWeapon);
-    story.innerHTML = storyWithBeat(state, stop);
+    const compact = game.type === "rice" || game.type === "dig" || game.type === "memory" || arcade;
+    story.innerHTML = compact
+      ? `<span class="story-main">${stop.icon || ""} ${stop.beat || stop.name}</span>`
+      : storyWithBeat(state, stop);
     panel.innerHTML = `
-      ${stopArt(stop)}
-      <h2>${stop.name}</h2>
-      <div class="learn-box"><strong>Learn:</strong> ${linkNativeWords(stop.learn)}</div>
-      ${arcade ? `<p class="arcade-intro">${meta.blurb}${game.type === "hunt" && eqW ? ` <em>(${active.name} readies the ${eqW.emoji} ${eqW.name}.)</em>` : ""}</p>` : `<p>${game.message}</p>`}
+      ${compact ? "" : stopArt(stop)}
+      <h2 class="mg-title">${stop.icon || ""} ${stop.name}</h2>
+      ${arcade ? `<p class="arcade-intro">${meta.blurb}${game.type === "hunt" && eqW ? ` <em>(${eqW.emoji})</em>` : ""}</p>` : ""}
       <div class="minigame-board ${arcade ? "arcade-board" : ""}" data-mg data-arcade="${arcade ? game.type : ""}"></div>
       ${!arcade && game.done ? `<div class="btn-row"><button class="btn btn-primary" data-a="done">Continue →</button></div>` : ""}
     `;
@@ -682,13 +694,24 @@ function renderMinigameBoard(board, game, handlers) {
     board.querySelectorAll("[data-mem]").forEach((btn) => (btn.onclick = () => handlers.mg({ type: "memory-flip", cardId: btn.dataset.mem })));
   } else if (game.type === "rice") {
     board.innerHTML = `
-      <p class="hint">Ripe gathered: ${game.caught}/${game.goal}</p>
-      <div class="rice-static-grid">
+      <div class="rice-hud">
+        <span>🌾 ${game.caught}/${game.goal}</span>
+        <span class="rice-timer">${game.ticksLeft}s</span>
+        <span class="hint">${game.message}</span>
+      </div>
+      <div class="rice-mole-grid">
         ${game.pods.map((p) => {
-          if (p.caught) return `<button class="rice-static caught" disabled>${p.ripe ? "✓" : "·"}</button>`;
-          return `<button class="rice-static ${p.ripe ? "ripe" : "green"}" data-pod="${p.id}">${p.ripe ? "🌾" : "🌱"}</button>`;
+          if (p.phase === "ripe") {
+            return `<button class="rice-mole ripe pulse" data-pod="${p.id}" aria-label="Ripe rice">🌾</button>`;
+          }
+          if (p.phase === "green") {
+            return `<button class="rice-mole green" data-pod="${p.id}" aria-label="Not ready">🌱</button>`;
+          }
+          return `<button class="rice-mole empty" disabled aria-hidden="true"></button>`;
         }).join("")}
-      </div>`;
+      </div>
+      ${game.done ? "" : `<p class="hint rice-tip">Tap gold fast — greens reseed the marsh!</p>`}
+    `;
     board.querySelectorAll("[data-pod]").forEach((btn) => (btn.onclick = () => handlers.mg({ type: "rice-catch", podId: btn.dataset.pod })));
   }
 }

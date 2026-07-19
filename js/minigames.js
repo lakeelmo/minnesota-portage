@@ -130,21 +130,82 @@ export function unflipMismatches(game) {
   return { ...game, cards, flipped: [], message: "Try another pair." };
 }
 
-/** Wild rice gather: tap ripe pods before they fade. */
-export function createRiceGame({ goal = 8 } = {}) {
-  const pods = Array.from({ length: 12 }, (_, i) => ({
+/**
+ * Manoomin whack-a-mole: pods flash ripe then fade.
+ * Tap golden ripe heads — leave green ones to reseed!
+ */
+export function createRiceGame({ goal = 8, ticks = 45 } = {}) {
+  const pods = Array.from({ length: 9 }, (_, i) => ({
     id: `pod-${i}`,
-    ripe: Math.random() > 0.35,
-    caught: false,
+    phase: "empty", // empty | ripe | green
+    ttl: 0,
   }));
   return {
     type: "rice",
     pods,
     caught: 0,
+    misses: 0,
     goal,
+    ticksLeft: ticks,
+    tick: 0,
     done: false,
     won: false,
-    message: "Tap the golden ripe manoomin pods. Leave some for next season!",
+    message: "Tap golden 🌾 while they're ripe — they vanish fast!",
+  };
+}
+
+export function tickRiceGame(game) {
+  if (game.done) return game;
+  let pods = game.pods.map((p) => ({ ...p }));
+  const ticksLeft = game.ticksLeft - 1;
+  const tick = (game.tick || 0) + 1;
+
+  // Age active pods
+  pods = pods.map((p) => {
+    if (p.phase === "empty") return p;
+    const ttl = p.ttl - 1;
+    if (ttl <= 0) return { ...p, phase: "empty", ttl: 0 };
+    return { ...p, ttl };
+  });
+
+  // Spawn: every other tick, maybe pop a ripe (or decoy green) pod
+  if (tick % 2 === 0) {
+    const empties = pods.map((p, i) => (p.phase === "empty" ? i : -1)).filter((i) => i >= 0);
+    if (empties.length) {
+      const idx = empties[Math.floor(Math.random() * empties.length)];
+      const ripe = Math.random() > 0.28;
+      pods[idx] = {
+        ...pods[idx],
+        phase: ripe ? "ripe" : "green",
+        ttl: ripe ? 3 + Math.floor(Math.random() * 2) : 2 + Math.floor(Math.random() * 2),
+      };
+    }
+  }
+
+  // Occasionally spawn a second ripe for challenge
+  if (tick % 5 === 0) {
+    const empties = pods.map((p, i) => (p.phase === "empty" ? i : -1)).filter((i) => i >= 0);
+    if (empties.length && Math.random() > 0.4) {
+      const idx = empties[Math.floor(Math.random() * empties.length)];
+      pods[idx] = { ...pods[idx], phase: "ripe", ttl: 3 };
+    }
+  }
+
+  const won = game.caught >= game.goal;
+  const done = won || ticksLeft <= 0;
+
+  return {
+    ...game,
+    pods,
+    tick,
+    ticksLeft: Math.max(0, ticksLeft),
+    won,
+    done,
+    message: done
+      ? won
+        ? "Bundle full! Respectful harvest — you left plants to reseed."
+        : `Time's up — you gathered ${game.caught} ripe pods.`
+      : `Ripe ${game.caught}/${game.goal} · ${ticksLeft}s left`,
   };
 }
 
@@ -152,27 +213,31 @@ export function catchRicePod(game, podId) {
   if (game.done) return game;
   const pods = game.pods.map((p) => ({ ...p }));
   const pod = pods.find((p) => p.id === podId);
-  if (!pod || pod.caught) return game;
+  if (!pod || pod.phase === "empty") return game;
 
-  pod.caught = true;
   let caught = game.caught;
+  let misses = game.misses;
   let message = game.message;
 
-  if (pod.ripe) {
+  if (pod.phase === "ripe") {
     caught += 1;
-    message = `Gathered carefully! ${caught}/${game.goal}`;
+    message = `Nice knock! ${caught}/${game.goal}`;
   } else {
-    message = "That one wasn’t ready — leave green pods to grow.";
+    misses += 1;
+    message = "Too green — leave those to grow!";
   }
 
-  const tapped = pods.filter((p) => p.caught).length;
+  pod.phase = "empty";
+  pod.ttl = 0;
+
   const won = caught >= game.goal;
-  const done = won || tapped >= pods.length;
+  const done = won || game.ticksLeft <= 0;
 
   return {
     ...game,
     pods,
     caught,
+    misses,
     won,
     done,
     message: done

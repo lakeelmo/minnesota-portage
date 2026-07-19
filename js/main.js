@@ -46,6 +46,7 @@ let setup = createEmptySetup();
 let draft = createPlayerDraft(0);
 let run = null;
 let memoryTimer = null;
+let riceTimer = null;
 let arcadeSession = null;
 let bagOpen = false;
 
@@ -54,6 +55,7 @@ const POWER_CYCLE = ["time-echo", "strong-arms", "speedy-feet", "animal-friend",
 
 function clearTimers() {
   if (memoryTimer) { clearTimeout(memoryTimer); memoryTimer = null; }
+  if (riceTimer) { clearInterval(riceTimer); riceTimer = null; }
 }
 function destroyArcade() {
   if (arcadeSession) { arcadeSession.destroy(); arcadeSession = null; }
@@ -206,7 +208,13 @@ function paint() {
         if (arcadePlaying() || bagOpen) return;
         const stop = run.stops[i];
         const next = mapTravel(run, i);
-        if (next !== run && stop) showToast(`Paddling to ${stop.name}…`);
+        if (next !== run && stop) {
+          const herd = (next.migrators || []).find((m) => m.at === stop.id);
+          const pred = (next.predators || []).find((p) => p.at === stop.id);
+          if (herd) showToast(`${herd.emoji} Followed the ${herd.name}!`);
+          else if (pred) showToast(`${pred.emoji} ${pred.name} is on you!`);
+          else showToast(`Paddling to ${stop.name}…`);
+        }
         update(next);
       },
       openBag: () => { if (arcadePlaying()) return; bagOpen = true; paint(); },
@@ -224,7 +232,25 @@ function paint() {
     }, { bagOpen }));
 
     maybeStartArcade();
+    maybeStartRiceMole();
   }
+}
+
+function maybeStartRiceMole() {
+  const g = run?.encounter?.game;
+  if (!g || g.type !== "rice" || g.done || riceTimer) return;
+  riceTimer = setInterval(() => {
+    if (!run?.encounter?.game || run.encounter.game.type !== "rice") {
+      clearTimers();
+      return;
+    }
+    if (run.encounter.game.done) {
+      clearTimers();
+      paint();
+      return;
+    }
+    update(handleMinigameAction(run, { type: "rice-tick" }));
+  }, 700);
 }
 
 function maybeStartArcade() {
