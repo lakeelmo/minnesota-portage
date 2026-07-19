@@ -27,3 +27,7 @@ Tap 🔊 chips to hear pronunciations (manoomin, Boozhoo, Bdote, Gichi-gami, and
 ## Respect
 
 Dakota and Ojibwe cultures are living cultures. Sacred places are for protection and learning. The dig site is a **practice** excavation only.
+
+## Live site
+
+Play online: [https://lakeelmo.github.io/minnesota-portage/](https://lakeelmo.github.io/minnesota-portage/)
