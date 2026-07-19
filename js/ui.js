@@ -4,8 +4,9 @@ import { getActivePlayer } from "./state.js";
 import { ARCADE_META, isArcadeType } from "./arcade.js";
 import { COMPANIONS, getCompanion, companionLine } from "./companions.js";
 import { getAnimal } from "./animals.js";
-import { QUEST, questProgress } from "./quest.js";
+import { QUEST } from "./quest.js";
 import { sayButton, linkNativeWords, bindSayButtons, unlockAudio } from "./audio.js";
+import { reachableStops } from "./game.js";
 
 export function el(html) {
   const t = document.createElement("template");
@@ -31,7 +32,7 @@ function clampInt(v, min, max) {
 /* ─────────────────────────── TITLE ─────────────────────────── */
 
 export function renderTitle(onStart, onContinue, hasSave) {
-  const cast = ["waver", "elegant", "willow", "sprout", "flurry"];
+  const cast = ["makoons", "waase", "ziigwan", "migizi", "wiyaka", "cetan", "tasina", "rivercloud"];
   const node = el(`
     <section class="screen title-screen">
       <div class="title-hero">
@@ -62,7 +63,7 @@ export function renderTitle(onStart, onContinue, hasSave) {
 
 export function renderPartySetup(setup, handlers) {
   const node = el(`
-    <section class="screen">
+    <section class="screen scroll-screen">
       <div class="paper-card">
         <h2 class="section-title">Gather your portage crew</h2>
         <p class="hint">1–10 players (hotseat). More players = more foes on the water roads!</p>
@@ -110,38 +111,44 @@ export function renderPartySetup(setup, handlers) {
 export function renderCharacterCreator(setup, draft, handlers) {
   const idx = setup.draftingIndex;
   const total = setup.playerCount;
+  const sel = CHARACTERS.find((c) => c.id === draft.characterId) || CHARACTERS[0];
   const node = el(`
-    <section class="screen">
+    <section class="screen scroll-screen">
       <div class="paper-card">
-        <h2 class="section-title">Player ${idx + 1} of ${total}</h2>
-        <p class="hint">Pick a doodle hero, name them, add a personality, and choose a superpower.</p>
+        <h2 class="section-title">Traveler ${idx + 1} of ${total}</h2>
+        <p class="hint">Choose a St. Croix valley kid, name them, add a personality, and pick a superpower.</p>
 
         <div class="creator-grid">
           <div class="creator-preview">
-            ${renderPortrait(draft.characterId, { size: 140 })}
-            <div class="preview-name">${escapeAttr(draft.name) || "Your hero"}</div>
+            ${renderPortrait(draft.characterId, { size: 120 })}
+            <div class="preview-name">${escapeAttr(draft.name) || sel.name}</div>
+            <div class="preview-meta">
+              <span class="nation-tag ${sel.nation === "Dakota" ? "dakota" : "ojibwe"}">${sel.nation}</span>
+              <span class="preview-home">🏞️ ${sel.homePlace}</span>
+            </div>
+            <p class="preview-blurb">${sel.blurb}</p>
+            <p class="preview-skill">✨ ${sel.seasonalSkill}</p>
           </div>
           <div class="creator-fields">
-            <div class="setup-grid two">
-              <div class="field">
-                <label for="pname">Your name</label>
-                <input id="pname" maxlength="16" placeholder="Explorer name" value="${escapeAttr(draft.name)}" />
-              </div>
-              <div class="field">
-                <label for="ppers">Personality</label>
-                <input id="ppers" maxlength="40" placeholder="brave, silly, curious, kind…" value="${escapeAttr(draft.personality)}" />
-              </div>
+            <div class="field">
+              <label for="pname">Your name</label>
+              <input id="pname" maxlength="16" placeholder="Traveler name" value="${escapeAttr(draft.name)}" />
+            </div>
+            <div class="field">
+              <label for="ppers">Personality</label>
+              <input id="ppers" maxlength="40" placeholder="brave, silly, curious, kind…" value="${escapeAttr(draft.personality)}" />
             </div>
           </div>
         </div>
 
         <div class="field">
-          <label>Choose your character</label>
+          <label>Choose your traveler</label>
           <div class="char-grid" data-chars>
             ${CHARACTERS.map((c) => `
               <button type="button" class="doodle-card ${draft.characterId === c.id ? "picked" : ""}" data-id="${c.id}">
-                ${c.portrait ? renderPortrait(c.id, { size: 72 }) : renderDoodle(c.id, { size: 58 })}
+                ${c.portrait ? renderPortrait(c.id, { size: 66 }) : renderDoodle(c.id, { size: 54 })}
                 <div class="label">${c.name}</div>
+                <div class="label-nation ${c.nation === "Dakota" ? "dakota" : "ojibwe"}">${c.nation}</div>
               </button>`).join("")}
           </div>
         </div>
@@ -174,230 +181,262 @@ export function renderCharacterCreator(setup, draft, handlers) {
   return node;
 }
 
-/* ─────────────────────────── TRAIL MAP ─────────────────────────── */
+/* ─────────────────────────── INTERACTIVE MAP ─────────────────────────── */
 
-function mapLayout(n) {
-  const perRow = 5;
-  const rows = Math.ceil(n / perRow);
-  const W = 1000, padX = 95, padTop = 74, rowH = 150;
-  const H = padTop + (rows - 1) * rowH + 70;
-  const usableW = W - padX * 2;
-  const nodes = [];
-  for (let i = 0; i < n; i++) {
-    const row = Math.floor(i / perRow);
-    const col = i % perRow;
-    const ltr = row % 2 === 0;
-    const c = ltr ? col : perRow - 1 - col;
-    const x = perRow === 1 ? W / 2 : padX + usableW * (c / (perRow - 1));
-    const y = padTop + row * rowH;
-    nodes.push({ x, y, i });
-  }
-  return { W, H, nodes };
+function shortLabel(s) {
+  return s.length > 15 ? s.slice(0, 14) + "…" : s;
 }
 
+/** The heart of the game: a tappable branching map of the St. Croix valley. */
 export function renderTrailMap(state) {
   const stops = state.stops;
-  const { W, H, nodes } = mapLayout(stops.length);
-  const cur = Math.max(0, state.stopIndex);
+  const cur = state.stopIndex;
+  const visited = state.visited || [];
+  const foeNodes = state.foeNodes || [];
+  const reachIdx = state.encounter ? [] : reachableStops(state);
+  const reachIds = new Set(reachIdx.map((i) => stops[i].id));
 
-  const pathD = nodes.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(0)} ${p.y.toFixed(0)}`).join(" ");
+  // Forward-link edges.
+  const edgeSvg = stops.flatMap((s) =>
+    (s.links || []).map((tid) => {
+      const t = stops.find((x) => x.id === tid);
+      if (!t) return "";
+      const active = stops[cur]?.id === s.id && reachIds.has(tid);
+      const done = visited.includes(s.id) && visited.includes(tid);
+      return `<line class="map-edge ${active ? "active" : ""} ${done ? "done" : ""}" x1="${s.x}" y1="${s.y}" x2="${t.x}" y2="${t.y}" />`;
+    })
+  ).join("");
 
-  const nodeSvg = nodes.map((p) => {
-    const stop = stops[p.i];
-    const done = p.i < cur;
-    const current = p.i === cur && state.stopIndex >= 0;
-    const cls = done ? "map-node done" : current ? "map-node current" : "map-node ahead";
-    const reveal = done || current;
-    const label = reveal ? stop.name : "???";
+  const nodeSvg = stops.map((s, i) => {
+    const isCur = i === cur;
+    const done = visited.includes(s.id);
+    const canGo = reachIds.has(s.id);
+    const foe = foeNodes.includes(s.id) && !done;
+    const revealed = isCur || done || canGo;
+    let cls = "map-node";
+    if (done) cls += " done";
+    else if (isCur) cls += " current";
+    else if (canGo) cls += " reachable";
+    else cls += " locked";
+    if (foe) cls += " has-foe";
+    if (s.type === "finale") cls += " finale";
+    const label = revealed ? shortLabel(s.name) : "???";
     return `
-      <g class="${cls}" data-node="${p.i}" data-name="${escapeAttr(stop.name)}" data-reveal="${reveal}" transform="translate(${p.x},${p.y})">
-        <circle r="27" />
-        <text class="map-icon" y="8">${stop.icon || "•"}</text>
-        <text class="map-num" y="-34">${p.i + 1}</text>
-        ${done ? `<text class="map-check" x="20" y="-16">✅</text>` : ""}
-        ${reveal ? `<text class="map-label" y="46">${label.length > 16 ? label.slice(0, 15) + "…" : label}</text>` : ""}
+      <g class="${cls}" data-node="${i}" ${canGo ? `data-travel="${i}"` : ""} role="button"
+         aria-label="${escapeAttr(revealed ? s.name : "Unknown stop")}${canGo ? " — tap to travel" : ""}"
+         transform="translate(${s.x},${s.y})">
+        <circle class="hit" r="62" />
+        <circle class="disc" r="34" />
+        <text class="map-icon" y="12">${revealed ? s.icon || "•" : "❔"}</text>
+        ${done ? `<text class="map-check" x="27" y="-20">✔</text>` : ""}
+        ${foe ? `<text class="map-foe" x="30" y="36">😾</text>` : ""}
+        ${revealed ? `<text class="map-label" y="64">${label}</text>` : ""}
       </g>`;
   }).join("");
 
-  // Markers on the current node: you + companion + animals
-  const curNode = nodes[cur] || nodes[0];
+  const curStop = stops[cur];
   const animalEmojis = (state.animalFriends || []).map((id) => getAnimal(id)?.emoji || "").join("");
   const compIcon = state.companion ? state.companion.icon : "";
-  const markers = `
-    <g class="map-markers" transform="translate(${curNode.x},${curNode.y - 54})">
-      <text class="marker-you" text-anchor="middle">📍</text>
-      <text class="marker-crew" y="-2" x="26">${compIcon}${animalEmojis}</text>
-    </g>`;
+  const marker = curStop
+    ? `<g class="map-marker" transform="translate(${curStop.x},${curStop.y - 50})">
+         <text class="marker-you" text-anchor="middle">🛶</text>
+         <text class="marker-crew" x="24" y="4">${compIcon}${animalEmojis}</text>
+       </g>`
+    : "";
 
   return `
-    <div class="trail-map-wrap">
-      <div class="map-title">Your portage path to the Council of Stories</div>
-      <svg class="trail-map" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Trail map across Minnesota waters and woods">
-        <path class="map-path-under" d="${pathD}" />
-        <path class="map-path" d="${pathD}" />
-        ${nodeSvg}
-        ${markers}
-      </svg>
-      <div class="map-legend">
-        <span><b class="dot done"></b> visited</span>
-        <span><b class="dot current"></b> you are here</span>
-        <span><b class="dot ahead"></b> still ahead</span>
-      </div>
-    </div>`;
+    <svg class="trail-map" viewBox="130 15 740 1010" preserveAspectRatio="xMidYMid meet" role="img" aria-label="St. Croix valley travel map — tap glowing stops to paddle onward">
+      ${edgeSvg}
+      ${nodeSvg}
+      ${marker}
+    </svg>`;
 }
 
-/* ─────────────────────────── HUD ─────────────────────────── */
+/* ─────────────────────────── HUD (compact, fixed) ─────────────────────────── */
 
 function statusChips(state) {
   const chips = [];
-  (state.ailments || []).forEach((a) => chips.push(`<span class="chip ailment" title="${a.name}">${a.emoji} ${a.name}</span>`));
-  if (state.rations <= 20) chips.push(`<span class="chip warn">🍽️ Getting hungry!</span>`);
-  if (!chips.length) chips.push(`<span class="chip ok">✨ Feeling good</span>`);
-  return `<div class="status-chips">${chips.join("")}</div>`;
+  (state.ailments || []).forEach((a) => chips.push(`<span class="chip ailment" title="${a.name}">${a.emoji}</span>`));
+  if (state.rations <= 20) chips.push(`<span class="chip warn">🍽️ Hungry</span>`);
+  if (!chips.length) chips.push(`<span class="chip ok">✨ Good</span>`);
+  return chips.join("");
 }
 
-function companionCard(state) {
-  const c = state.companion;
-  if (!c) return "";
-  return `
-    <div class="companion-card">
-      <div class="companion-doodle">${renderDoodle(c.characterId, { size: 40, clothingId: c.clothingId })}</div>
-      <div class="companion-info">
-        <div class="companion-name">${c.icon} ${c.name} <span class="companion-tag">companion</span></div>
-        <div class="companion-pers">${c.personality} · helps left: ${c.helpsLeft}</div>
-      </div>
-    </div>`;
+/** Painted stop art with watercolor-paper fallback (other agent adds PNGs). */
+function stopArt(stop, className = "") {
+  if (!stop) return "";
+  const src = stop.art || "";
+  return `<div class="stop-art ${className}" style="${src ? `background-image:url('${src}')` : ""}">
+    <span class="stop-art-icon" aria-hidden="true">${stop.icon || "🛶"}</span>
+  </div>`;
 }
 
 function hud(state) {
   const stop = state.stopIndex < 0 ? state.start : state.stops[Math.min(state.stopIndex, state.stops.length - 1)];
-  const locName = stop?.name || "Portage";
-  const biome = state.stopIndex < 0 ? state.start.biome : stop?.biome || "forest";
+  const locName = stop?.name || "St. Croix";
   const active = getActivePlayer(state);
-  const eqW = getWeapon(state.equippedWeapon);
-  const qp = questProgress(state);
-  const animalStrip = (state.animalFriends || []).map((id) => {
-    const a = getAnimal(id);
-    return `<span class="friend-chip" title="${a?.perk || ""}">${a?.emoji || ""}</span>`;
-  }).join("");
-
+  const c = state.companion;
   return `
-    <div class="hud">
-      <div class="quest-banner" title="${QUEST.short}">
-        <span class="quest-label">${QUEST.itemEmoji} ${QUEST.title}</span>
-        <span class="quest-stones">${QUEST.stoneEmoji} Story Stones: ${qp.stones}/${qp.total || "—"}</span>
-        <span class="quest-hint">Goal: ${QUEST.goalStops}</span>
-      </div>
-      <div class="hud-top">
+    <header class="hud">
+      <div class="hud-row1">
         <div class="location-badge">📍 ${locName}</div>
-        <div class="hud-turn">${state.players.length > 1 ? `🎲 ${active.name}'s turn` : ""}</div>
-        <div class="hud-score">⭐ ${state.score}</div>
+        <div class="hud-right">
+          <span class="hud-stones">🪨 ${state.storyStones || 0}</span>
+          <span class="hud-score">⭐ ${state.score}</span>
+        </div>
       </div>
       <div class="hud-bars">
-        <div class="bar"><span>❤️ Health</span><div class="bar-track"><div class="bar-fill health" style="width:${(state.health / state.maxHealth) * 100}%"></div></div><span>${state.health}</span></div>
-        <div class="bar"><span>⚡ Energy</span><div class="bar-track"><div class="bar-fill energy" style="width:${(state.energy / state.maxEnergy) * 100}%"></div></div><span>${state.energy}</span></div>
-        <div class="bar"><span>🍖 Food</span><div class="bar-track"><div class="bar-fill rations" style="width:${(state.rations / state.maxRations) * 100}%"></div></div><span>${state.rations}</span></div>
+        <div class="bar" title="Health"><span class="bar-ic">❤️</span><div class="bar-track"><div class="bar-fill health" style="width:${(state.health / state.maxHealth) * 100}%"></div></div><span class="bar-n">${state.health}</span></div>
+        <div class="bar" title="Energy"><span class="bar-ic">⚡</span><div class="bar-track"><div class="bar-fill energy" style="width:${(state.energy / state.maxEnergy) * 100}%"></div></div><span class="bar-n">${state.energy}</span></div>
+        <div class="bar" title="Food"><span class="bar-ic">🍖</span><div class="bar-track"><div class="bar-fill rations" style="width:${(state.rations / state.maxRations) * 100}%"></div></div><span class="bar-n">${state.rations}</span></div>
       </div>
-      ${companionCard(state)}
-      ${statusChips(state)}
-      <div class="party-strip">
-        ${state.players.map((p, i) => {
-          const cloth = getClothing(p.clothingId);
-          return `<div class="party-chip ${i === state.activePlayer ? "active-turn" : ""}">
-            <span class="mini">${renderDoodle(p.characterId, { size: 26, clothingId: p.clothingId })}</span>
-            <span>${p.name || "Player"} ${cloth?.emoji || ""}</span>
-          </div>`;
-        }).join("")}
-        ${eqW ? `<div class="party-chip weapon-chip" title="Equipped weapon">${eqW.emoji} ${eqW.name}</div>` : ""}
-        ${animalStrip ? `<div class="party-chip friends">${animalStrip}</div>` : ""}
+      <div class="hud-row3">
+        ${state.players.length > 1 ? `<span class="hud-turn">🎲 ${active.name}</span>` : ""}
+        ${c ? `<span class="hud-companion" title="${c.name} · ${c.personality}">${c.icon} ${c.name}</span>` : ""}
+        <span class="status-chips">${statusChips(state)}</span>
       </div>
-    </div>
-    <div class="biome scene ${biome}">
-      <div class="biome-bg"></div>
-      <div class="party-on-trail">
-        ${state.players.map((p, i) => renderDoodle(p.characterId, {
-          size: 46,
-          clothingId: p.clothingId,
-          animalEmoji: i === 0 ? (getAnimal((state.animalFriends || [])[0])?.emoji || "") : "",
-        })).join("")}
-        ${state.companion ? renderDoodle(state.companion.characterId, { size: 42, clothingId: state.companion.clothingId, className: "companion-onscene" }) : ""}
-      </div>
-      <div class="biome-content">
-        <div class="story-box" id="story-slot"></div>
-      </div>
-    </div>
+    </header>
   `;
 }
 
 /* ─────────────────────────── TRAIL SCREEN ─────────────────────────── */
 
-export function renderTrail(state, handlers) {
-  const active = getActivePlayer(state);
+export function renderTrail(state, handlers, ui = {}) {
+  const hasEnc = !!state.encounter;
+  const reach = state.encounter ? [] : reachableStops(state);
+  const coach = hasEnc
+    ? ""
+    : reach.length
+      ? "🛶 Tap a glowing stop to paddle there"
+      : "Choose your next move…";
+
   const node = el(`
-    <section class="screen">
+    <section class="screen trail-screen">
       ${hud(state)}
-      ${renderTrailMap(state)}
-      <div class="paper-card encounter-panel" id="encounter"></div>
-      <div class="paper-card gear-card">
-        <h3 class="section-title" style="font-size:1.3rem">🎒 Snacks, medicine & gear</h3>
-        <div class="inventory" data-inv>
-          ${state.inventory.length
-            ? state.inventory.map((item, i) => {
-                const med = item.type === "medicine";
-                return `<button class="item-chip ${med ? "medicine" : ""}" data-eat="${i}">${item.emoji} ${item.name}${med ? " 💊" : ` (+${item.energy}⚡${item.health ? ` +${item.health}❤️` : ""})`}</button>`;
-              }).join("")
-            : `<span class="hint">No snacks left — hunt, forage, or find helpers!</span>`}
-        </div>
+      <div class="map-stage ${hasEnc ? "dimmed" : ""}">
+        ${renderTrailMap(state)}
+        ${coach ? `<div class="map-coach">${coach}</div>` : ""}
+      </div>
+      ${hasEnc ? "" : `
+      <nav class="dock">
+        <button class="dock-btn" data-action="bag">🎒<span>Bag</span></button>
+        <button class="dock-btn" data-action="rest">🏕️<span>Rest</span></button>
+        <button class="dock-btn" data-action="exit">💾<span>Exit</span></button>
+      </nav>`}
+    </section>
+  `);
 
-        <div class="gear-actions">
-          <button class="btn btn-blue" data-action="rest">🏕️ Make camp (rest)</button>
+  // ── Encounter overlay (bottom sheet / modal) ──
+  if (hasEnc) {
+    const kind = state.encounter.kind;
+    const big = kind === "intro" || kind === "finale" || kind === "victory";
+    const overlay = el(`
+      <div class="overlay encounter-overlay">
+        <div class="sheet ${big ? "sheet-full" : ""}">
+          <div class="sheet-grip" aria-hidden="true"></div>
+          <div class="sheet-story" id="story-slot"></div>
+          <div class="sheet-body" id="encounter"></div>
         </div>
+      </div>
+    `);
+    node.appendChild(overlay);
+    fillEncounter(overlay.querySelector("#story-slot"), overlay.querySelector("#encounter"), state, handlers);
+  }
 
-        <div class="gear-row">
-          <span class="hint">Weapons (equip for hunts & scaring foes):</span>
-          <div class="weapon-row" data-weapons>
+  // ── Bag / gear modal ──
+  if (ui.bagOpen && !hasEnc) {
+    node.appendChild(buildBagModal(state, handlers));
+  }
+
+  // Wire dock + map.
+  node.querySelector('[data-action="bag"]')?.addEventListener("click", handlers.openBag);
+  node.querySelector('[data-action="rest"]')?.addEventListener("click", handlers.rest);
+  node.querySelector('[data-action="exit"]')?.addEventListener("click", handlers.exit);
+  node.querySelectorAll("[data-travel]").forEach((g) => {
+    g.addEventListener("click", () => handlers.mapTravel(Number(g.dataset.travel)));
+  });
+  return node;
+}
+
+/* ─────────────────────────── BAG / GEAR MODAL ─────────────────────────── */
+
+function buildBagModal(state, handlers) {
+  const active = getActivePlayer(state);
+  const animalStrip = (state.animalFriends || []).map((id) => {
+    const a = getAnimal(id);
+    return `<span class="friend-chip" title="${a?.perk || ""}">${a?.emoji || ""} ${a?.name || ""}</span>`;
+  }).join("");
+
+  const modal = el(`
+    <div class="overlay bag-overlay">
+      <div class="sheet sheet-full bag-sheet">
+        <div class="bag-head">
+          <h2>🎒 Bag & Crew</h2>
+          <button class="icon-btn" data-action="close-bag" aria-label="Close bag">✕</button>
+        </div>
+        <div class="bag-scroll">
+          <h3 class="bag-title">Snacks & medicine</h3>
+          <div class="inventory">
+            ${state.inventory.length
+              ? state.inventory.map((item, i) => {
+                  const med = item.type === "medicine";
+                  return `<button class="item-chip ${med ? "medicine" : ""}" data-eat="${i}">${item.emoji} ${item.name}${med ? " 💊" : ` (+${item.energy}⚡${item.health ? ` +${item.health}❤️` : ""})`}</button>`;
+                }).join("")
+              : `<span class="hint">No snacks left — hunt, forage, or meet a helper!</span>`}
+          </div>
+
+          <div class="gear-actions">
+            <button class="btn btn-blue" data-action="rest">🏕️ Make camp (rest)</button>
+          </div>
+
+          <h3 class="bag-title">Weapons <span class="hint">(hunts &amp; scaring foes)</span></h3>
+          <div class="weapon-row">
             ${state.weaponsOwned.map((id) => {
               const w = getWeapon(id);
               const eq = state.equippedWeapon === id;
               return `<button class="weapon-btn ${eq ? "equipped" : ""}" data-weapon="${id}" title="${w?.desc || ""}">${w?.emoji || ""} ${w?.name || id}</button>`;
             }).join("")}
           </div>
-        </div>
 
-        <div class="gear-row">
-          <span class="hint">Outfits for ${active.name} (changes their look!):</span>
-          <div class="clothing-row" data-clothes>
+          <h3 class="bag-title">Outfits <span class="hint">for ${escapeAttr(active.name)}</span></h3>
+          <div class="clothing-row">
             ${state.clothingOwned.map((id) => {
               const c = getClothing(id);
               const eq = active.clothingId === id;
               return `<button class="cloth-btn ${eq ? "equipped" : ""}" data-cloth="${id}">${c.emoji} ${c.name}</button>`;
             }).join("")}
           </div>
-        </div>
 
-        <div class="btn-row">
-          <button class="btn btn-ghost" data-action="title">Save & Exit</button>
+          <h3 class="bag-title">Crew</h3>
+          <div class="party-strip">
+            ${state.players.map((p, i) => {
+              const cloth = getClothing(p.clothingId);
+              return `<div class="party-chip ${i === state.activePlayer ? "active-turn" : ""}">
+                <span class="mini">${renderDoodle(p.characterId, { size: 24, clothingId: p.clothingId })}</span>
+                <span>${escapeAttr(p.name || "Player")} ${cloth?.emoji || ""}</span>
+              </div>`;
+            }).join("")}
+            ${state.companion ? `<div class="party-chip">${state.companion.icon} ${escapeAttr(state.companion.name)}</div>` : ""}
+            ${animalStrip ? `<div class="party-chip friends">${animalStrip}</div>` : ""}
+          </div>
+        </div>
+        <div class="bag-foot">
+          <button class="btn btn-ghost" data-action="exit">💾 Save &amp; Exit</button>
+          <button class="btn btn-primary" data-action="close-bag">Back to map</button>
         </div>
       </div>
-    </section>
+    </div>
   `);
 
-  const story = node.querySelector("#story-slot");
-  const panel = node.querySelector("#encounter");
-  fillEncounter(story, panel, state, handlers);
-
-  node.querySelectorAll("[data-eat]").forEach((btn) => btn.addEventListener("click", () => handlers.eat(Number(btn.dataset.eat))));
-  node.querySelectorAll("[data-cloth]").forEach((btn) => btn.addEventListener("click", () => handlers.equip(btn.dataset.cloth)));
-  node.querySelectorAll("[data-weapon]").forEach((btn) => btn.addEventListener("click", () => handlers.equipWeapon(btn.dataset.weapon)));
-  node.querySelector('[data-action="rest"]').addEventListener("click", handlers.rest);
-  node.querySelector('[data-action="title"]').addEventListener("click", handlers.exit);
-  node.querySelectorAll("[data-node]").forEach((g) => {
-    if (g.getAttribute("data-reveal") === "true") {
-      g.style.cursor = "pointer";
-      g.addEventListener("click", () => handlers.mapPeek(Number(g.dataset.node)));
-    }
-  });
-  return node;
+  modal.querySelectorAll('[data-action="close-bag"]').forEach((b) => b.addEventListener("click", handlers.closeBag));
+  modal.querySelectorAll("[data-eat]").forEach((btn) => btn.addEventListener("click", () => handlers.eat(Number(btn.dataset.eat))));
+  modal.querySelectorAll("[data-cloth]").forEach((btn) => btn.addEventListener("click", () => handlers.equip(btn.dataset.cloth)));
+  modal.querySelectorAll("[data-weapon]").forEach((btn) => btn.addEventListener("click", () => handlers.equipWeapon(btn.dataset.weapon)));
+  modal.querySelector('[data-action="rest"]')?.addEventListener("click", handlers.rest);
+  modal.querySelector('[data-action="exit"]')?.addEventListener("click", handlers.exit);
+  // Tap the dim backdrop to close.
+  modal.addEventListener("click", (e) => { if (e.target === modal) handlers.closeBag(); });
+  return modal;
 }
 
 /* ─────────────────────────── Narration helpers ─────────────────────────── */
@@ -428,9 +467,11 @@ function fillEncounter(story, panel, state, handlers) {
   }
 
   if (enc.kind === "intro") {
+    const startStop = state.stops?.[0] || state.start;
     const briefing = QUEST.briefing(active.name, state.companion?.name).replace(/\n/g, "<br/>");
     story.innerHTML = `<span class="story-main">${linkNativeWords(enc.text)}</span>${state.companion ? `<span class="story-beat">${companionLine(state.companion, "start", active.name)}</span>` : ""}`;
     panel.innerHTML = `
+      ${stopArt(startStop, "stop-art-wide")}
       <h2>${QUEST.itemEmoji} ${enc.title}</h2>
       <p class="quest-brief">${briefing}</p>
       <p class="learn-box">A <strong>portage</strong> is when you carry a canoe over land between waters.
@@ -518,6 +559,7 @@ function fillEncounter(story, panel, state, handlers) {
     story.innerHTML = storyWithBeat(state, stop);
     const elim = enc.eliminated || [];
     panel.innerHTML = `
+      ${stopArt(stop)}
       <h2>${stop.name}</h2>
       <div class="learn-box"><strong>Trail fact:</strong> ${linkNativeWords(stop.learn)}</div>
       <p class="quiz-q"><strong>${active.name}</strong>, ${stop.question}</p>
@@ -567,6 +609,7 @@ function fillEncounter(story, panel, state, handlers) {
     const eqW = getWeapon(state.equippedWeapon);
     story.innerHTML = storyWithBeat(state, stop);
     panel.innerHTML = `
+      ${stopArt(stop)}
       <h2>${stop.name}</h2>
       <div class="learn-box"><strong>Learn:</strong> ${linkNativeWords(stop.learn)}</div>
       ${arcade ? `<p class="arcade-intro">${meta.blurb}${game.type === "hunt" && eqW ? ` <em>(${active.name} readies the ${eqW.emoji} ${eqW.name}.)</em>` : ""}</p>` : `<p>${game.message}</p>`}
@@ -587,6 +630,7 @@ function fillEncounter(story, panel, state, handlers) {
     const stop = enc.stop;
     story.innerHTML = storyWithBeat(state, stop);
     panel.innerHTML = `
+      ${stopArt(stop, "stop-art-wide")}
       <h2>${stop.name}</h2>
       <div class="learn-box"><strong>Remember:</strong> ${linkNativeWords(stop.learn)}</div>
       <p>You carried <strong>${state.storyStones || 0} Story Stones</strong> in the Bundle.
@@ -601,8 +645,9 @@ function fillEncounter(story, panel, state, handlers) {
   }
 
   if (enc.kind === "victory") {
+    const finaleStop = state.stops?.find((s) => s.type === "finale") || state.stops?.[state.stops.length - 1];
     story.textContent = "The lake sparkles. The Bundle is open. You did it!";
-    panel.innerHTML = renderVictoryInner(state);
+    panel.innerHTML = `${stopArt(finaleStop, "stop-art-wide")}${renderVictoryInner(state)}`;
     wireVictory(panel, handlers);
   }
 

@@ -1,68 +1,78 @@
 /**
- * Minnesota Portage explorers — naive children’s-book doodles (not clip-art sticks).
- * Soft filled bodies, round hands, cheek blush, hair volume; outfits still layer on top.
+ * Minnesota Portage explorers — fictional young people of the St. Croix valley,
+ * rooted in real Dakota and Ojibwe places and lifeways. They are NOT sacred
+ * figures or caricatures — just kids from the valley, drawn as warm
+ * children's-book doodles when a painted portrait isn't available.
+ *
+ * Each character keeps doodle color fields (skin/hair/shirt/… ) for the SVG
+ * fallback, plus `nation`, `homePlace`, and `seasonalSkill`. Painted portraits
+ * are preferred and loaded from `assets/char-{id}.jpg` when present.
  */
 
 export const CHARACTERS = [
   {
-    id: "waver", name: "Waver", blurb: "Always waving hello on the shore.",
-    skin: "#f3c79a", hair: "#2a2118", shirt: "#2f6b8f", pants: "#3d7ea6",
-    accent: "#e8b86d", shoe: "#3a2a1c", bodyStyle: "casual", hairStyle: "short", face: "smile",
-    portrait: "assets/char-waver.png",
+    id: "makoons", name: "Makoons", nation: "Ojibwe", homePlace: "Upper St. Croix lakes",
+    blurb: "A cheerful kid whose name means “little bear.” First to the sugarbush every spring.",
+    seasonalSkill: "Spring sugaring — knows exactly when the sap will run.",
+    skin: "#b57a45", hair: "#1c130c", shirt: "#2f6b8f", pants: "#3d7ea6",
+    accent: "#e8b86d", shoe: "#3a2a1c", bodyStyle: "casual", hairStyle: "short", face: "happy",
+    portrait: "assets/char-makoons.jpg",
   },
   {
-    id: "elegant", name: "Sky Skirt", blurb: "Long hair, bright skirt, purple boots.",
-    skin: "#e8b989", hair: "#1c1917", shirt: "#2f6f8f", pants: "#d48aa8",
-    accent: "#6b4c9a", shoe: "#5b3d8a", bodyStyle: "skirt", hairStyle: "longWavy", face: "smile",
-    portrait: "assets/char-elegant.png",
+    id: "waase", name: "Waase", nation: "Ojibwe", homePlace: "Namekagon River",
+    blurb: "Named from a word for “bright light.” Careful and calm out on the ricing canoe.",
+    seasonalSkill: "Fall ricing — a gentle, patient manoomin harvester.",
+    skin: "#8a5a32", hair: "#0f0d0a", shirt: "#2f7a6b", pants: "#1d4f5f",
+    accent: "#d4a017", shoe: "#5c3310", bodyStyle: "tunic", hairStyle: "braids", face: "smile",
+    portrait: "assets/char-waase.jpg",
   },
   {
-    id: "sporty", name: "Polka Cap", blurb: "Backwards cap and polka-dot dress.",
-    skin: "#d9a078", hair: "#b91c1c", shirt: "#3d8f6a", pants: "#2f6b4f",
-    accent: "#f4f7f5", shoe: "#f5e6c8", bodyStyle: "dress", hairStyle: "cap", face: "happy",
-    portrait: "assets/char-sporty.png",
+    id: "ziigwan", name: "Ziigwan", nation: "Ojibwe", homePlace: "Yellow Lake, St. Croix country",
+    blurb: "Named for the spring thaw. Always reading the clouds, the ice, and the wind.",
+    seasonalSkill: "Weather-wise — feels a storm or a thaw coming.",
+    skin: "#f3c79a", hair: "#2a2118", shirt: "#c4a574", pants: "#8b7355",
+    accent: "#2f6f8f", shoe: "#5c4033", bodyStyle: "tunic", hairStyle: "bob", face: "smile",
+    portrait: "assets/char-ziigwan.jpg",
   },
   {
-    id: "formal", name: "Tie Time", blurb: "Fancy tie, very long trousers.",
-    skin: "#b57a45", hair: "#1a1a1a", shirt: "#2c3539", pants: "#1f2933",
+    id: "migizi", name: "Migizi", nation: "Ojibwe", homePlace: "Falls of the St. Croix",
+    blurb: "Named for the eagle. Knows the canoe routes and portages by heart.",
+    seasonalSkill: "Water roads — a strong paddler and portage carrier.",
+    skin: "#6e4528", hair: "#141414", shirt: "#c46a2f", pants: "#2f6f8f",
+    accent: "#f4f7f5", shoe: "#7a4e12", bodyStyle: "jacket", hairStyle: "longStraight", face: "determined",
+    portrait: "assets/char-migizi.jpg",
+  },
+  {
+    id: "wiyaka", name: "Wíyaka", nation: "Dakota", homePlace: "St. Croix–Mississippi confluence",
+    blurb: "A curious kid whose name means “feather.” Loves finding plants and berries.",
+    seasonalSkill: "Foraging — spots edible plants and berry patches fast.",
+    skin: "#d9a078", hair: "#1a140f", shirt: "#c4a574", pants: "#8b7355",
+    accent: "#a84b3a", shoe: "#5c3310", bodyStyle: "tunic", hairStyle: "puff", face: "happy",
+    portrait: "assets/char-wiyaka.jpg",
+  },
+  {
+    id: "cetan", name: "Čhetáŋ", nation: "Dakota", homePlace: "Kaphóža villages, lower St. Croix",
+    blurb: "Named for the hawk. Sharp-eyed, quiet, and steady on the winter trail.",
+    seasonalSkill: "Tracking — follows animal signs through the snow.",
+    skin: "#e8b989", hair: "#0f172a", shirt: "#2c3539", pants: "#1f2933",
     accent: "#c45c4a", shoe: "#111111", bodyStyle: "suit", hairStyle: "neat", face: "determined",
-    portrait: "assets/char-formal.png",
+    portrait: "assets/char-cetan.jpg",
   },
   {
-    id: "vibrant", name: "Purple Song", blurb: "Sings trail songs at every portage.",
-    skin: "#e8b989", hair: "#5b3d8a", shirt: "#c46a2f", pants: "#2f6f8f",
-    accent: "#f4f7f5", shoe: "#f4f7f5", bodyStyle: "jacket", hairStyle: "longStraight", face: "sing",
-    portrait: "assets/char-vibrant.png",
+    id: "tasina", name: "Tašína", nation: "Dakota", homePlace: "St. Croix prairie edge",
+    blurb: "A warm, artful kid whose name relates to a robe or blanket. Loves quillwork and trade beads.",
+    seasonalSkill: "Trade & craft — knows the value of every bead and fur.",
+    skin: "#9a6435", hair: "#1c1917", shirt: "#e8d5b7", pants: "#c4a574",
+    accent: "#a84b3a", shoe: "#5c3310", bodyStyle: "tunic", hairStyle: "longWavy", face: "smile",
+    portrait: "assets/char-tasina.jpg",
   },
   {
-    id: "sprout", name: "Sprout", blurb: "Overalls and a pocket of seeds.",
-    skin: "#8a5a32", hair: "#2b2118", shirt: "#d4a017", pants: "#3f6212",
-    accent: "#f0d36a", shoe: "#5c3310", bodyStyle: "overalls", hairStyle: "puff", face: "happy",
-    portrait: "assets/char-sprout.png",
-  },
-  {
-    id: "cozy", name: "Cozy", blurb: "Hoodie hero — never cold at camp.",
-    skin: "#f6d3b0", hair: "#7a4a22", shirt: "#3d8fad", pants: "#334155",
-    accent: "#7eb6c9", shoe: "#1f2937", bodyStyle: "hoodie", hairStyle: "bob", face: "smile",
-    portrait: "assets/char-cozy.png",
-  },
-  {
-    id: "willow", name: "Willow", blurb: "Calm tunic and curious eyes.",
-    skin: "#9a6435", hair: "#0f172a", shirt: "#2f7a6b", pants: "#1d4f5f",
-    accent: "#d4a0c8", shoe: "#5c3310", bodyStyle: "tunic", hairStyle: "braids", face: "smile",
-    portrait: "assets/char-willow.png",
-  },
-  {
-    id: "flurry", name: "Flurry", blurb: "Puffy coat, snow-ready giggles.",
-    skin: "#f0c9a0", hair: "#d6d3d1", shirt: "#c45c4a", pants: "#1d4ed8",
-    accent: "#f1f5f9", shoe: "#0f172a", bodyStyle: "puffer", hairStyle: "short", face: "surprise",
-    portrait: "assets/char-flurry.png",
-  },
-  {
-    id: "star", name: "Star", blurb: "Sunset poncho over the lake.",
-    skin: "#6e4528", hair: "#1a1a1a", shirt: "#5b3d8a", pants: "#9b2d5a",
-    accent: "#e8b86d", shoe: "#7a4e12", bodyStyle: "poncho", hairStyle: "longStraight", face: "determined",
-    portrait: "assets/char-star.png",
+    id: "rivercloud", name: "River Cloud", nation: "Dakota", homePlace: "St. Croix river bluffs",
+    blurb: "A dreamy storyteller (English name, Dakota family) who maps the water roads in songs.",
+    seasonalSkill: "Storytelling — remembers every route and every tale.",
+    skin: "#f0c9a0", hair: "#141414", shirt: "#c4a574", pants: "#8b7355",
+    accent: "#2f6f8f", shoe: "#5c3310", bodyStyle: "tunic", hairStyle: "longStraight", face: "sing",
+    portrait: "assets/char-rivercloud.jpg",
   },
 ];
 
@@ -340,7 +350,7 @@ export function renderDoodle(characterId, { size = 72, className = "", expr, clo
 export function renderPortrait(characterId, { size = 120, className = "" } = {}) {
   const c = getCharacter(characterId);
   if (c.portrait) {
-    return `<img class="char-portrait ${className}" src="${c.portrait}" alt="${c.name}" width="${size}" height="${size}" style="width:${size}px;height:${size}px;object-fit:cover;border-radius:18px" />`;
+    return `<img class="char-portrait ${className}" src="${c.portrait}" alt="${c.name}" width="${size}" height="${size}" style="width:${size}px;height:${size}px;object-fit:cover;object-position:center 18%;border-radius:18px" />`;
   }
   return renderDoodle(characterId, { size: Math.round(size * 0.55), className });
 }

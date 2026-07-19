@@ -27,6 +27,7 @@ import {
   completeFinale,
   restAtCamp,
   tryEat,
+  mapTravel,
 } from "./game.js";
 import {
   renderTitle,
@@ -46,8 +47,9 @@ let draft = createPlayerDraft(0);
 let run = null;
 let memoryTimer = null;
 let arcadeSession = null;
+let bagOpen = false;
 
-const CHAR_CYCLE = ["waver", "elegant", "sporty", "formal", "vibrant", "sprout", "cozy", "willow", "flurry", "star"];
+const CHAR_CYCLE = ["makoons", "wiyaka", "waase", "cetan", "ziigwan", "tasina", "migizi", "rivercloud"];
 const POWER_CYCLE = ["time-echo", "strong-arms", "speedy-feet", "animal-friend", "puzzle-master", "warm-heart"];
 
 function clearTimers() {
@@ -200,20 +202,26 @@ function paint() {
         update(equipWeapon(run, id));
         showToast("Weapon equipped.");
       },
-      mapPeek: (i) => {
+      mapTravel: (i) => {
+        if (arcadePlaying() || bagOpen) return;
         const stop = run.stops[i];
-        if (stop) showToast(`Stop ${i + 1}: ${stop.name}`);
+        const next = mapTravel(run, i);
+        if (next !== run && stop) showToast(`Paddling to ${stop.name}…`);
+        update(next);
       },
+      openBag: () => { if (arcadePlaying()) return; bagOpen = true; paint(); },
+      closeBag: () => { bagOpen = false; paint(); },
       exit: () => {
         destroyArcade();
+        bagOpen = false;
         saveRun(run);
         screen = "title";
         showToast("Progress saved.");
         paint();
       },
-      again: () => { destroyArcade(); clearSave(); screen = "party"; paint(); },
-      home: () => { destroyArcade(); clearSave(); screen = "title"; paint(); },
-    }));
+      again: () => { destroyArcade(); bagOpen = false; clearSave(); screen = "party"; paint(); },
+      home: () => { destroyArcade(); bagOpen = false; clearSave(); screen = "title"; paint(); },
+    }, { bagOpen }));
 
     maybeStartArcade();
   }
@@ -253,7 +261,7 @@ paint();
   if (arcadeParam && isArcadeType(arcadeParam)) {
     setup = {
       playerCount: 1, difficulty: "medium", companionOn: true, companionId: null,
-      players: [{ id: "p1", name: "Tester", personality: "brave", characterId: "waver", powerId: "puzzle-master", clothingId: "none" }],
+      players: [{ id: "p1", name: "Tester", personality: "brave", characterId: "makoons", powerId: "puzzle-master", clothingId: "none" }],
       draftingIndex: 0,
     };
     run = startRun(setup);

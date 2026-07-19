@@ -8,12 +8,13 @@ import {
   getAilment,
   pickRandom,
   TRAIL_STOPS,
+  assignFoeNodes,
 } from "./data.js";
 import { CLOTHING, getClothing } from "./characters.js";
 import { makeCompanionState, pickCompanion } from "./companions.js";
 import { getAnimal } from "./animals.js";
 
-const SAVE_KEY = "minnesota-portage-v3";
+const SAVE_KEY = "minnesota-portage-v4";
 
 export function createEmptySetup() {
   return {
@@ -31,7 +32,7 @@ export function createPlayerDraft(index) {
     id: `p${index + 1}`,
     name: "",
     personality: "",
-    characterId: "waver",
+    characterId: "makoons",
     powerId: "time-echo",
     clothingId: "none",
   };
@@ -69,10 +70,12 @@ export function startRun(setup) {
     animalFriends: [],
     companion,
     storyStones: 0,
-    questTitle: "The Great Portage",
+    questTitle: "The St. Croix Great Portage",
     stopIndex: -1, // -1 = whimsical start / quest briefing
     start,
     stops: TRAIL_STOPS,
+    visited: [], // stop ids the party has completed
+    foeNodes: assignFoeNodes(setup.difficulty, setup.players.length), // stop ids guarded by a foe
     activePlayer: 0,
     score: 0,
     learned: [],

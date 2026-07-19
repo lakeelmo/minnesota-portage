@@ -10,7 +10,7 @@ export const COMPANIONS = [
   {
     id: "birdie",
     name: "Birdie",
-    characterId: "cozy",
+    characterId: "ziigwan",
     clothingId: "maple-scarf",
     personality: "cheerful and chatty",
     blurb: "A sunny sidekick who hums travel songs and never runs out of encouragement.",
@@ -19,7 +19,7 @@ export const COMPANIONS = [
   {
     id: "moss",
     name: "Moss",
-    characterId: "willow",
+    characterId: "waase",
     clothingId: "rain-cape",
     personality: "calm and thoughtful",
     blurb: "Quiet, watchful, and great at spotting the right path — and the right answer.",
@@ -28,7 +28,7 @@ export const COMPANIONS = [
   {
     id: "scout",
     name: "Scout",
-    characterId: "sprout",
+    characterId: "wiyaka",
     clothingId: "dig-boots",
     personality: "bold and curious",
     blurb: "First to try, first to laugh, and always ready to dig into a mystery.",
@@ -37,7 +37,7 @@ export const COMPANIONS = [
   {
     id: "pip",
     name: "Pip",
-    characterId: "star",
+    characterId: "rivercloud",
     clothingId: "star-cloak",
     personality: "dreamy and kind",
     blurb: "Tells stories about the stars and cheers the loudest at the finish.",
@@ -46,7 +46,7 @@ export const COMPANIONS = [
   {
     id: "nova",
     name: "Nova",
-    characterId: "flurry",
+    characterId: "cetan",
     clothingId: "fur-hat",
     personality: "brave and warm",
     blurb: "Loves cold mornings and warm campfires. Keeps everyone's spirits up.",

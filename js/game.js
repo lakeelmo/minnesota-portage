@@ -6,7 +6,6 @@ import {
   AILMENTS,
   getAilment,
   getWeapon,
-  enemyCountForPlayers,
   pickRandom,
   shuffle,
 } from "./data.js";
@@ -37,6 +36,7 @@ import {
   catchRicePod,
 } from "./minigames.js";
 import { ARCADE_META, isArcadeType } from "./arcade.js";
+import { QUEST } from "./quest.js";
 
 /* ─────────────── Intro ─────────────── */
 
@@ -47,7 +47,7 @@ export function beginTrail(state) {
     ...state,
     encounter: {
       kind: "intro",
-      title: "The Great Portage",
+      title: QUEST.title || "The St. Croix Great Portage",
       text: state.start.blurb,
       quest: true,
       playerName: active?.name || "Explorer",
@@ -63,18 +63,21 @@ export function advanceFromIntro(state) {
 /* ─────────────── Arrival + random encounters ─────────────── */
 
 export function arriveAtStop(state) {
-  if (state.stopIndex >= state.stops.length) return finishVictory(state);
+  if (state.stopIndex < 0 || state.stopIndex >= state.stops.length) return finishVictory(state);
 
   const stop = state.stops[state.stopIndex];
   let next = { ...state, encounter: null, log: [...state.log, `Reached: ${stop.name}`] };
 
-  const foeChance = enemyCountForPlayers(state.players.length, state.difficulty);
-  const helperBoost = state.animalFriendPower ? 0.2 : 0;
-  const roll = Math.random();
+  // A foe stationed on this map node blocks the way first (existing foe system).
+  if (stop.type !== "finale" && (state.foeNodes || []).includes(stop.id)) {
+    return makeFoeEncounter(next);
+  }
 
-  if (stop.type !== "finale" && roll < foeChance) return makeFoeEncounter(next);
-  if (stop.type !== "finale" && roll < foeChance + 0.3 + helperBoost) return makeHelperEncounter(next);
-  if (stop.type !== "finale" && Math.random() < 0.16) return makeTriviaEncounter(next);
+  // Optional roadside helper / campfire trivia (never on the finale).
+  const helperBoost = state.animalFriendPower ? 0.12 : 0;
+  const roll = Math.random();
+  if (stop.type !== "finale" && roll < 0.22 + helperBoost) return makeHelperEncounter(next);
+  if (stop.type !== "finale" && roll < 0.34 + helperBoost) return makeTriviaEncounter(next);
 
   return makeStopEncounter(next);
 }
@@ -213,6 +216,11 @@ function makeStopEncounter(state) {
   const stop = state.stops[state.stopIndex];
   if (!stop) return finishVictory(state);
 
+  // Reaching the stop's own content means any foe guarding it has been dealt with.
+  if (stop && (state.foeNodes || []).includes(stop.id)) {
+    state = { ...state, foeNodes: state.foeNodes.filter((id) => id !== stop.id) };
+  }
+
   if (stop.type === "quiz") {
     // fresh quiz — reset companion free tip
     const companion = state.companion ? { ...state.companion, tipUsedThisQuiz: false } : null;
@@ -329,7 +337,7 @@ function earnStoryStone(state, reason = "You earned a Story Stone!") {
 
 export function continueAfterQuiz(state) {
   let next = earnStoryStone(state, "A Story Stone joins your Bundle!");
-  return travelToNext({ ...next, encounter: null, encountersDone: next.encountersDone + 1, _stoneThisStop: false });
+  return completeStop({ ...next, encountersDone: next.encountersDone + 1 });
 }
 
 /* ─────────────── Minigames ─────────────── */
@@ -372,7 +380,7 @@ export function finishMinigame(state) {
   }
   next = maybeUnlockAnimal(next, 0.3);
   next = earnStoryStone(next, "A Story Stone joins your Bundle!");
-  return travelToNext({ ...next, _stoneThisStop: false });
+  return completeStop(next);
 }
 
 /** Apply results from an Oregon Trail–style arcade minigame. */
@@ -399,7 +407,7 @@ export function finishArcade(state, result) {
 
   next = maybeUnlockAnimal(next, 0.3);
   next = earnStoryStone(next, "A Story Stone joins your Bundle!");
-  return travelToNext({ ...next, _stoneThisStop: false });
+  return completeStop(next);
 }
 
 function maybeUnlockAnimal(state, baseChance) {
@@ -410,12 +418,32 @@ function maybeUnlockAnimal(state, baseChance) {
   return state;
 }
 
-/* ─────────────── Travel: hunger + sickness ─────────────── */
+/* ─────────────── Map graph travel ─────────────── */
 
-export function travelToNext(state) {
+/** Can the party paddle from the current node to `targetIndex` right now? */
+export function canTravelTo(state, targetIndex) {
+  if (!state || state.gameOver || state.encounter) return false; // no travel with a modal open
+  const cur = state.stops[state.stopIndex];
+  const target = state.stops[targetIndex];
+  if (!cur || !target || targetIndex === state.stopIndex) return false;
+  if ((state.visited || []).includes(target.id)) return false;
+  return (cur.links || []).includes(target.id);
+}
+
+/** Reachable (adjacent + unvisited) node indices from the current node. */
+export function reachableStops(state) {
+  const cur = state.stops[state.stopIndex];
+  if (!cur) return [];
+  return (cur.links || [])
+    .map((id) => state.stops.findIndex((s) => s.id === id))
+    .filter((i) => i >= 0 && !(state.visited || []).includes(state.stops[i].id));
+}
+
+/** Travel/hunger/sickness costs applied while paddling between nodes. */
+function applyTravelCosts(state) {
   const diff = DIFFICULTIES[state.difficulty];
   const cost = travelCost(state);
-  let next = applyDamage(state, 0, cost, `Traveled onward (−${cost} energy).`);
+  let next = applyDamage(state, 0, cost, `Paddled onward (−${cost} energy).`);
 
   // Hunger drains rations; empty rations hurt.
   const rations = clamp(next.rations - diff.hungerDrain, 0, next.maxRations);
@@ -441,12 +469,26 @@ export function travelToNext(state) {
   }
 
   if (next.energy <= 0 && next.health > 0) next = applyDamage(next, 8, 0, "Exhausted… health dips. Eat or rest at camp!");
-  if (next.gameOver) return next;
+  return next;
+}
 
+/** Player tapped an adjacent node on the map. Pay travel costs and arrive. */
+export function mapTravel(state, targetIndex) {
+  if (!canTravelTo(state, targetIndex)) return state;
+  let next = applyTravelCosts(state);
+  if (next.gameOver) return next;
   next = nextPlayer(next);
-  next = { ...next, stopIndex: next.stopIndex + 1 };
-  if (next.stopIndex >= next.stops.length) return finishVictory(next);
+  next = { ...next, stopIndex: targetIndex, _stoneThisStop: false };
   return arriveAtStop(next);
+}
+
+/** Finished a stop's content — mark it visited and return to the map (no auto-advance). */
+function completeStop(state) {
+  const stop = state.stops[state.stopIndex];
+  const visited = stop && !(state.visited || []).includes(stop.id)
+    ? [...(state.visited || []), stop.id]
+    : state.visited || [];
+  return { ...state, encounter: null, visited, _stoneThisStop: false };
 }
 
 /* ─────────────── Camp: rest + medicine ─────────────── */

@@ -36,16 +36,16 @@ export const DIFFICULTIES = {
 };
 
 export const WHIMSICAL_STARTS = [
-  { id: "donut-field", name: "The Field of Floating Donuts", biome: "donuts",
-    blurb: "You tumble into a meadow of floating donuts — not a real Minnesota place! A sticky maple glaze trail points toward the water roads. Your Story Bundle is safe. The Great Portage begins here." },
   { id: "singing-canoes", name: "Lake of Singing Canoes", biome: "lake",
-    blurb: "Birchbark canoes hum old travel songs. One winks and drifts to shore. Time to follow the water roads of Minnesota’s first peoples — with your Story Bundle on your back." },
-  { id: "syrup-forest", name: "Upside-Down Maple Syrup Forest", biome: "sugarbush",
-    blurb: "Trees drip golden syrup upward. A raccoon in a tiny sash points at trail marks used for centuries. Grab a snack — your portage toward real history starts now!" },
-  { id: "giggle-marsh", name: "Wild Rice Giggle Marsh", biome: "marsh",
-    blurb: "Tall rice plants whisper jokes in the wind. Manoomin was — and is — precious food. Your boots squish. The Story Bundle waits. Onward!" },
-  { id: "thunder-pillows", name: "Thunderbird Pillow Cliffs", biome: "cliffs",
-    blurb: "Clouds shaped like thunderbirds snooze on red rock. Stories of sky beings echo. A path zigzags toward gathering places — and the Council that waits for your stones." },
+    blurb: "You wake on the shore of the Upper St. Croix lakes. Birchbark canoes hum old travel songs; one drifts to your feet. The water roads of the St. Croix valley are calling — with your Story Bundle on your back." },
+  { id: "syrup-forest", name: "Sugarbush at First Thaw", biome: "sugarbush",
+    blurb: "Maples drip sweet sap and the whole sugarbush smells like spring. A friendly voice points down the valley toward the Falls of the St. Croix. Grab a snack — the Great Portage begins here!" },
+  { id: "giggle-marsh", name: "Manoomin Marsh Morning", biome: "marsh",
+    blurb: "Tall wild-rice plants sway in the wind along a St. Croix backwater. Manoomin was — and is — precious food. Your canoe waits, the Story Bundle rides behind you. Onward!" },
+  { id: "namekagon-bend", name: "Bend of the Namekagon", biome: "river",
+    blurb: "Morning fog lifts off the Namekagon, the St. Croix's clear sister river. A heron lifts off downstream, showing the way. Time to carry stories along the water roads." },
+  { id: "riverbluff-dawn", name: "St. Croix Bluffs at Dawn", biome: "cliffs",
+    blurb: "You stand on a river bluff as sunrise paints the valley gold. Far below, the St. Croix braids toward the Council of Stories. A path zigzags down toward the gathering places." },
 ];
 
 /* ─────────────────────────── ITEMS ─────────────────────────── */
@@ -151,159 +151,158 @@ export const QUIZ_BANK = [
   { q: "What should you do at a real pictograph site?", choices: ["Look, don't touch", "Trace it with markers", "Chip off a piece", "Repaint it"], a: 0, hint: "Skin oils damage ancient paint." },
 ];
 
-/* ─────────────────────────── TRAIL STOPS ─────────────────────────── */
-
+/* ─────────────────────────── TRAIL STOPS (map graph) ───────────────────────────
+ * A branching map along the St. Croix valley water roads. Each stop has map
+ * coords (x,y in a 0–1000 SVG viewBox) and `links` to adjacent stop ids.
+ * `links` are FORWARD-ONLY (directed downstream), so the party always makes
+ * progress and can't wander back into a skipped branch.
+ * The path forms four "branch pairs": at each, the player picks ONE route and
+ * skips the other — a way to steer around foe tokens. Every route ends at the
+ * Council of Stories.
+ */
 export const TRAIL_STOPS = [
   {
     id: "water-roads", name: "The Water Roads", biome: "lake", type: "quiz", icon: "🛶",
-    story: "Long before highways, people traveled Minnesota by canoe on rivers and lakes. These water roads linked families, trade, and stories across vast distances.",
-    beat: "The water is calm and mirror-bright; it feels like the whole trail is welcoming you.",
-    learn: "Dakota and Ojibwe (Anishinaabe) peoples have lived in this region for many generations. Birchbark canoes were light, strong, and perfect for Minnesota's waters.",
-    question: "What did people often use to travel Minnesota's lakes and rivers long ago?",
+    art: "assets/stop-water-roads.jpg", x: 500, y: 930, links: ["glacial-lakes", "maple-sugaring"],
+    story: "Your journey begins on the Upper St. Croix lakes. Long before highways, people traveled by canoe on the rivers and lakes of this valley. These water roads linked families, trade, and stories.",
+    beat: "The water is calm and mirror-bright; the whole valley seems to welcome you.",
+    learn: "The St. Croix valley is the homeland of Dakota and Ojibwe (Anishinaabe) peoples. Birchbark canoes were light, strong, and perfect for these waters.",
+    question: "What did people often use to travel the St. Croix's lakes and rivers long ago?",
     choices: ["Birchbark canoes", "Steam trains", "Snowmobiles", "Hot-air balloons"], answer: 0,
     hint: "Think of light boats made from tree bark.",
   },
   {
     id: "glacial-lakes", name: "How the Lakes Were Born", biome: "ice", type: "quiz", icon: "🧊",
-    story: "Tens of thousands of years ago, giant sheets of ice — glaciers — crawled across the land. As they melted, they scooped out thousands of basins that filled with water.",
-    beat: "A chill rolls off the ancient ice. Your party huddles close, imagining walls of ice taller than trees.",
-    learn: "Minnesota's 10,000+ lakes were shaped by glaciers during the last Ice Age. The land you walk on was carved and smoothed by moving ice.",
-    question: "What shaped most of Minnesota's thousands of lakes?",
+    art: "assets/stop-glacial-lakes.jpg", x: 300, y: 812, links: ["manoomin"],
+    story: "The Upper St. Croix and its neighbor lakes were scooped out by glaciers. Tens of thousands of years ago, giant sheets of ice crawled across the land, then melted into these basins.",
+    beat: "A chill rolls off the water; you imagine walls of ice taller than the pines.",
+    learn: "Minnesota's many lakes were shaped by glaciers during the last Ice Age. The St. Croix valley itself was carved by ancient meltwater rivers.",
+    question: "What shaped most of the St. Croix valley's lakes?",
     choices: ["Melting glaciers (moving ice)", "Meteor showers", "Volcanoes", "Giant beavers"], answer: 0,
     hint: "Think of huge sheets of slow-moving ice from the Ice Age.",
   },
   {
     id: "maple-sugaring", name: "The Sugarbush", biome: "sugarbush", type: "quiz", icon: "🍁",
-    story: "When spring days warm but nights still freeze, sap rises in the maple trees. Families gathered at the sugarbush to tap trees and boil sap into sweet sugar.",
+    art: "assets/stop-maple-sugaring.jpg", x: 700, y: 812, links: ["manoomin"],
+    story: "When spring days warm but nights still freeze, sap rises in the maples. Valley families gathered at the sugarbush to tap trees and boil sap into sweet sugar.",
     beat: "The air smells like warm syrup. Everyone's mouth waters at once.",
-    learn: "Maple sugaring is a seasonal tradition for Dakota and Ojibwe communities — still practiced today. It marked the start of the new year's cycle of foods.",
+    learn: "Maple sugaring is a spring tradition for Dakota and Ojibwe communities — still practiced today. It opened the year's cycle of foods.",
     question: "In what season did families gather at the sugarbush to make maple sugar?",
     choices: ["Early spring", "Middle of winter", "Late fall", "Only in summer"], answer: 0,
     hint: "Sap runs when warm days follow freezing nights.",
-    weaponReward: null,
-  },
-  {
-    id: "forest-hunt", name: "Forest Hunt", biome: "forest", type: "minigame", minigame: "hunt", icon: "🦌",
-    story: "Your party needs food for the trail. In the clearing ahead, animals move quickly. Take only what you need — and thank the land.",
-    beat: "Stomachs rumble. This hunt matters.",
-    learn: "Hunting and fishing were vital skills. Careful harvest meant food for today and animals for tomorrow.",
-    weaponReward: "practice-bow",
-  },
-  {
-    id: "seasonal-life", name: "The Seasonal Round", biome: "prairie", type: "quiz", icon: "🔄",
-    story: "People moved with the seasons: sugaring in spring, fishing and gardening in summer, ricing in fall, hunting and story-telling in winter. Each season had its work and its gifts.",
-    beat: "You picture a whole year of trails, all connected like beads on a string.",
-    learn: "This yearly pattern is called the 'seasonal round.' Dakota and Ojibwe life followed the land's calendar, not a factory clock.",
-    question: "The 'seasonal round' means people…",
-    choices: ["Moved and worked with the seasons", "Stayed in one spot all year", "Only worked in summer", "Ignored the weather"], answer: 0,
-    hint: "Different foods and jobs came with spring, summer, fall, and winter.",
   },
   {
     id: "manoomin", name: "Manoomin Marsh", biome: "marsh", type: "minigame", minigame: "rice", icon: "🌾",
-    story: "Manoomin means 'good berry' or wild rice — a sacred food for Ojibwe communities. Harvesting is done carefully with knockers and canoes so the plants reseed.",
+    art: "assets/stop-manoomin.jpg", x: 500, y: 700, links: ["portage-carry", "pictographs"],
+    story: "In a St. Croix backwater, wild rice sways over the shallows. Manoomin means 'good berry' — a sacred food for Ojibwe communities. It is harvested gently with knockers and canoes so the plants reseed.",
     beat: "The marsh whispers. Take only ripe grains; leave the rest to grow.",
-    learn: "Wild rice grows in shallow lakes and rivers. Respectful harvest is part of living with the land, not taking everything at once.",
-  },
-  {
-    id: "river-rapids", name: "River Rapids Run", biome: "river", type: "minigame", minigame: "rapids", icon: "🌊",
-    story: "White water churns between two lakes. Steer your birchbark canoe through the rocks — one wrong bump and you'll be swimming!",
-    beat: "Spray hits your faces. Everyone grips the gunwales.",
-    learn: "Minnesota's water roads weren't always calm. Skillful paddling and reading the current kept travelers safe.",
-    weaponReward: "fishing-spear",
+    learn: "Manoomin grows in shallow lakes and slow rivers. Respectful harvest means living with the land, not taking everything at once.",
   },
   {
     id: "portage-carry", name: "The Great Portage", biome: "forest", type: "minigame", minigame: "portage", icon: "🥾",
-    story: "The lakes don't connect here — time to carry the canoe! A portage path winds between rocks and sticky mud. Don't drop the canoe!",
+    art: "assets/stop-portage-carry.jpg", x: 285, y: 585, links: ["hunt-forage"],
+    story: "Two waters don't quite connect — time to carry the canoe! The portage path winds between rocks and sticky mud. Don't drop the canoe!",
     beat: "The canoe is heavy, but teamwork makes it lighter.",
-    learn: "Portages linked Minnesota's water highways. Strength, teamwork, and planning mattered as much as paddling.",
+    learn: "Portages linked the valley's water highways. Strength, teamwork, and planning mattered as much as paddling — this is where 'portage' gets its name.",
   },
   {
-    id: "pictograph-puzzle", name: "Cliff Pictograph Puzzle", biome: "cliffs", type: "minigame", minigame: "memory", icon: "🎨",
-    story: "Painted symbols on rock (pictographs) can share stories, maps, and meanings. Matching patterns helps you 'read' the cliff wall.",
+    id: "pictographs", name: "Cliff Pictographs", biome: "cliffs", type: "minigame", minigame: "memory", icon: "🎨",
+    art: "assets/stop-pictographs.jpg", x: 715, y: 585, links: ["hunt-forage"],
+    story: "On a shaded rock face, painted symbols — pictographs — share stories, maps, and meanings. Match the patterns to 'read' the cliff wall.",
     beat: "The old paintings seem to glow when you look closely.",
-    learn: "Rock art sites are treasures. In real life we look with our eyes, not our hands — oils from fingers can damage ancient paint.",
+    learn: "Rock art sites are treasures. In real life we look with our eyes, not our hands — oils from fingers can damage ancient paint. Look, don't touch.",
   },
   {
-    id: "thunderbird", name: "Thunderbird Cliffs", biome: "cliffs", type: "quiz", icon: "⚡",
-    story: "Storm clouds gather over the red rock. Many nations tell stories of the Thunderbird — a powerful sky being whose wings make thunder and whose eyes flash lightning.",
-    beat: "Distant thunder rolls. Your party feels small under a very big sky.",
-    learn: "Thunderbird stories are cultural stories that belong to the peoples who tell them. We enjoy and respect them without pretending they are ours.",
-    question: "Thunderbird stories are best understood as…",
-    choices: ["Cultural stories that belong to the peoples who tell them", "Just weather reports", "Something to copy and sell", "Made up last year"], answer: 0,
-    hint: "They are meaningful traditions — we listen with respect.",
+    id: "hunt-forage", name: "Woodland Hunt & Forage", biome: "forest", type: "minigame", minigame: "forage", icon: "🦌",
+    art: "assets/stop-hunt-forage.jpg", x: 500, y: 470, links: ["pipestone", "bdote"],
+    story: "Berries, hazelnuts, deer, and stream fish wait in the valley woods. Explore carefully and take only what your party needs — and watch for buzzing pests!",
+    beat: "So many gifts hiding in the green — if you move with care.",
+    learn: "Hunting, fishing, and gathering fed families through the year. Careful harvest meant food for today and animals and plants for tomorrow.",
+    weaponReward: "practice-bow",
   },
   {
-    id: "forage-woods", name: "Woodland Forage", biome: "forest", type: "minigame", minigame: "forage", icon: "🫐",
-    story: "Berries, maple signs, and stream fish wait in the woods. Explore with your feet — and watch out for the unofficial state bird (mosquitoes)!",
-    beat: "So many snacks hiding in the green — if you can beat the bugs.",
-    learn: "Gathering plants and fishing filled out meals alongside hunted game. Knowing the land was a map you carried in your mind.",
-    weaponReward: "sling",
-  },
-  {
-    id: "trapline", name: "Winter Trapline", biome: "winter", type: "minigame", minigame: "trap", icon: "🪤",
-    story: "Animal paths cross the snowy brush. Set snares, wait, and check them — a patient skill practiced for generations.",
-    beat: "Snow crunches underfoot. Breath puffs like little clouds.",
-    learn: "Trapping provided food and warm furs. Traplines were tended carefully so nothing was wasted.",
-    weaponReward: "snowshoe-staff",
-  },
-  {
-    id: "pipestone", name: "Pipestone Prairie", biome: "pipestone", type: "quiz", icon: "🔴",
-    story: "At Pipestone (in southwestern Minnesota), people quarried soft red stone called catlinite to carve sacred pipes. Many nations traveled here to quarry in peace.",
-    beat: "The red stone glows warm in the sun. This place feels important.",
-    learn: "Pipestone National Monument protects quarries still used by Native people today. The stone is special and the site is deeply respected.",
-    question: "What is the soft red stone from Pipestone often used to carve?",
-    choices: ["Sacred pipes", "Skyscrapers", "Robot parts", "Pizza ovens"], answer: 0,
+    id: "pipestone", name: "Pipestone Teachings", biome: "pipestone", type: "quiz", icon: "🔴",
+    art: "assets/stop-pipestone.jpg", x: 300, y: 355, links: ["fur-trade"],
+    story: "An elder shares a teaching about Pipestone, far southwest of the valley. There, people quarried soft red stone to carve sacred pipes, and many nations traveled to quarry in peace.",
+    beat: "You hold the story carefully, the way you'd hold something precious.",
+    learn: "Pipestone National Monument protects quarries still used by Native people today. Even though it's far from the St. Croix, its stone traveled trade routes across the region.",
+    question: "The soft red stone from Pipestone is treated as…",
+    choices: ["Special and deeply respected", "A toy to trade for fun", "Ordinary gravel", "Something to sell online"], answer: 0,
     hint: "Think of something used in ceremonies and gatherings.",
   },
   {
-    id: "fur-trade", name: "Big Lake Trading Post", biome: "superior", type: "quiz", icon: "⚓",
-    story: "Along the shore of Gichi-gami (Lake Superior), Native nations had traded goods for centuries. Later, French and other traders arrived and traded metal tools, cloth, and beads for furs.",
-    beat: "The great lake stretches to the horizon like an ocean.",
-    learn: "The fur trade linked many peoples. Native communities were skilled traders and partners — this was an exchange, not an empty land waiting to be found.",
+    id: "bdote", name: "Where the Rivers Meet", biome: "river", type: "quiz", icon: "🏞️",
+    art: "assets/stop-bdote.jpg", x: 700, y: 355, links: ["fur-trade"],
+    story: "Downstream, the St. Croix joins the Mississippi, and further on the Minnesota River meets it too. The Dakota call that great meeting place Bdote — a place of deep meaning.",
+    beat: "Rivers braid together below you. History layers here like river mud.",
+    learn: "Bdote is sacred to the Dakota, long before any fort was built nearby. Honest history remembers who was here first and what places mean to them.",
+    question: "The meeting of the rivers, called Bdote, is…",
+    choices: ["A place of deep meaning to the Dakota", "An empty parking lot", "A brand-new lake", "A made-up place"], answer: 0,
+    hint: "It mattered long before newcomers arrived.",
+  },
+  {
+    id: "fur-trade", name: "Fur Trade Exchange", biome: "superior", type: "quiz", icon: "⚓",
+    art: "assets/stop-fur-trade.jpg", x: 500, y: 245, links: ["dig-site", "headwaters"],
+    story: "At a valley trading spot, furs, copper, beads, and metal tools change hands. Native nations had traded across this land for centuries before French and other traders arrived.",
+    beat: "Bundles of fur and shining trade goods pass carefully between hands.",
+    learn: "The fur trade linked many peoples. Native communities were skilled traders and partners — this was an exchange between nations, not an empty land waiting to be 'found.'",
     question: "By the fur-trade era, Native nations were…",
     choices: ["Skilled traders with long trade networks", "New to the area", "Uninterested in trade", "Living alone"], answer: 0,
     hint: "People had traded copper, shells, and more for a very long time.",
   },
   {
-    id: "fort-snelling", name: "Where the Rivers Meet", biome: "river", type: "quiz", icon: "🏛️",
-    story: "Where the Minnesota and Mississippi Rivers meet is a place called Bdote by the Dakota — a place of deep meaning long before a fort was ever built there.",
-    beat: "Two rivers braid together below you. History layers here like river mud.",
-    learn: "Bdote is sacred to the Dakota. Later, Fort Snelling was built at this spot. Honest history remembers who was here first and what places mean to them.",
-    question: "The meeting of the two rivers, called Bdote, is…",
-    choices: ["A place of deep meaning to the Dakota", "An empty parking lot", "A brand-new lake", "A made-up place"], answer: 0,
-    hint: "It mattered long before any fort was built.",
-  },
-  {
-    id: "mound-care", name: "Earthwork Guardians", biome: "mounds", type: "quiz", icon: "⛰️",
-    story: "Ancient earthworks and mounds across the region hold history and meaning. Archaeologists study the past carefully — and sacred places deserve protection, not treasure-digging.",
-    beat: "Grassy mounds rise like sleeping giants. You lower your voices.",
-    learn: "Real archaeology uses permission, science, and respect. Looting destroys knowledge forever. Your 'dig' ahead is a pretend learning dig on a practice plot!",
-    question: "If you find an old object at a real historic site, what's the best first step?",
-    choices: ["Leave it and tell a ranger or expert", "Pocket it as a souvenir", "Sell it online", "Bury it deeper"], answer: 0,
-    hint: "Experts and caretakers help protect history.",
-  },
-  {
     id: "dig-site", name: "Practice Dig Site", biome: "mounds", type: "minigame", minigame: "dig", icon: "🔎",
-    story: "Under teacher supervision (and magic trail rules), you excavate a practice square. Grid by grid, you search for learning artifacts — beads, pottery bits, and tools.",
+    art: "assets/stop-dig-site.jpg", x: 330, y: 150, links: ["finale"],
+    story: "With an archaeologist guiding you (and magic trail rules), you excavate a practice square. Grid by grid, you search for learning artifacts — beads, pottery bits, and tools.",
     beat: "Trowels ready! Careful, slow, and curious wins the day.",
-    learn: "Archaeologists dig in layers and record everything. Context — where something was found — can matter as much as the object itself.",
+    learn: "Real archaeology uses permission, science, and respect — and never touches sacred mounds. Context, where something is found, can matter as much as the object itself.",
   },
   {
-    id: "itasca", name: "Headwaters of the Mississippi", biome: "forest", type: "quiz", icon: "💧",
-    story: "At Lake Itasca, the mighty Mississippi begins as a stream you can step across. From here, water travels all the way to the Gulf of Mexico.",
-    beat: "You hop the tiny stream that becomes a giant river. Everyone cheers.",
-    learn: "'Itasca' was coined from Latin bits of 'veritas' and 'caput' — truth + head — for 'true head' of the river.",
-    question: "Where does the Mississippi River begin in Minnesota?",
-    choices: ["Lake Itasca", "Lake Superior", "The Grand Canyon", "The Moon"], answer: 0,
-    hint: "It's a lake whose name hints at the 'true head' of the river.",
+    id: "headwaters", name: "St. Croix Headwaters", biome: "forest", type: "quiz", icon: "💧",
+    art: "assets/stop-headwaters.jpg", x: 670, y: 150, links: ["finale"],
+    story: "You climb to the very source of the St. Croix, near Upper St. Croix Lake — a quiet spot where the great river begins as a small, clear trickle.",
+    beat: "You step across the little stream that grows into the whole river you traveled.",
+    learn: "The St. Croix River begins in northwest Wisconsin and northeast Minnesota, then flows south to join the Mississippi. Protecting the headwaters keeps the whole river healthy.",
+    question: "Where does a river like the St. Croix begin?",
+    choices: ["At its headwaters (its source)", "At the ocean", "In the middle", "Nowhere — rivers have no start"], answer: 0,
+    hint: "The 'head' of the river is where it starts as a small stream.",
   },
   {
     id: "finale", name: "Council of Stories", biome: "city", type: "finale", icon: "🔥",
-    story: "You reach a glowing circle of story-stones. Elders (and a very polite raccoon) ask you to open the Story Bundle and share what you carried. Minnesota’s portage isn’t only places — it’s people, water, foodways, and care for the past.",
+    art: "assets/stop-finale.jpg", x: 500, y: 72, links: [],
+    story: "You reach a glowing circle of story-stones above the St. Croix. Elders ask you to open the Story Bundle and share what you carried. The Great Portage isn't only places — it's people, water, foodways, and care for the past.",
     beat: "Firelight dances on every face. You made it, together.",
-    learn: "Dakota and Ojibwe cultures are living cultures — not only “history.” Learning with respect keeps the portage alive for the next explorers.",
+    learn: "Dakota and Ojibwe cultures are living cultures — not only “history.” Learning with respect keeps the portage alive for the next travelers.",
   },
 ];
+
+/* Branch pairs: at each, a run visits ONE node and skips the other.
+ * Foe tokens are placed on some branch nodes so an alternate route stays open. */
+export const BRANCH_PAIRS = [
+  ["glacial-lakes", "maple-sugaring"],
+  ["portage-carry", "pictographs"],
+  ["pipestone", "bdote"],
+  ["dig-site", "headwaters"],
+];
+
+export function getStop(id) {
+  return TRAIL_STOPS.find((s) => s.id === id) || null;
+}
+
+export function stopIndexById(id) {
+  return TRAIL_STOPS.findIndex((s) => s.id === id);
+}
+
+/** Place foes on some branch nodes (never more than one per pair, so the
+ * other branch is always foe-free and the player can route around trouble). */
+export function assignFoeNodes(difficultyId, playerCount) {
+  const chance = enemyCountForPlayers(playerCount, difficultyId);
+  const foes = [];
+  for (const [a, b] of BRANCH_PAIRS) {
+    if (Math.random() < chance) foes.push(Math.random() < 0.5 ? a : b);
+  }
+  return foes;
+}
 
 export function enemyCountForPlayers(playerCount, difficultyId) {
   const base = DIFFICULTIES[difficultyId]?.enemyChance ?? 0.25;
