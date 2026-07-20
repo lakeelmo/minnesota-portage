@@ -1,93 +1,76 @@
 /**
- * Minnesota Portage — board map.
- * A branching St. Croix valley board: roll a die, move exactly that many hops,
- * then resolve the space (card / challenge). Strategy = which branch you take.
+ * Minnesota Portage — left-to-right valley race board.
+ * Progress is roughly west → east. Branches add strategy; finish wins.
  */
 
 export const BOARD = [
-  // ── Start ──
-  { id: "start", name: "Canoe Landing", kind: "start", icon: "🛶", x: 80, y: 520,
-    links: ["lake-bend", "pine-spur"], blurb: "Launch your Story Bundle from the Upper St. Croix." },
+  { id: "start", name: "Canoe Landing", kind: "start", icon: "🛶", x: 70, y: 390, progress: 0,
+    links: ["fog-bay", "reed-shore"], blurb: "Push off. First to the Council wins." },
 
-  // ── Early branch ──
-  { id: "lake-bend", name: "Mirror Lake Bend", kind: "path", icon: "💧", x: 180, y: 420,
-    links: ["start", "glacier-shelf", "reed-cut"], blurb: "Calm water — a good place to paddle and think." },
-  { id: "pine-spur", name: "Pine Ridge Spur", kind: "path", icon: "🌲", x: 180, y: 620,
-    links: ["start", "sugar-trail", "fox-run"], blurb: "A dry ridge path between the lakes." },
+  { id: "fog-bay", name: "Fog Bay", kind: "path", icon: "🌫️", x: 170, y: 300, progress: 1,
+    links: ["start", "glacier-notch", "birch-point"], blurb: "Mist on the water." },
+  { id: "reed-shore", name: "Reed Shore", kind: "path", icon: "🌿", x: 170, y: 480, progress: 1,
+    links: ["start", "sugar-bend", "otter-cove"], blurb: "Tall reeds hide the channel." },
 
-  { id: "glacier-shelf", name: "Glacier Shelf", kind: "knowledge", icon: "🧊", x: 280, y: 340,
-    links: ["lake-bend", "manoomin-inlet"], art: "assets/stop-glacial-lakes.jpg",
-    blurb: "Ice once carved this basin. Knowledge space — draw a Story Card." },
-  { id: "reed-cut", name: "Reed Cut", kind: "path", icon: "🌿", x: 280, y: 460,
-    links: ["lake-bend", "manoomin-inlet", "sugar-trail"], blurb: "A shortcut through tall reeds." },
-  { id: "sugar-trail", name: "Sugarbush Path", kind: "knowledge", icon: "🍁", x: 280, y: 560,
-    links: ["pine-spur", "reed-cut", "manoomin-inlet"], art: "assets/stop-maple-sugaring.jpg",
-    blurb: "Sap buckets and sweet smoke. Knowledge space." },
-  { id: "fox-run", name: "Fox Run", kind: "hazard", icon: "🦊", x: 280, y: 700,
-    links: ["pine-spur", "portage-foot"], blurb: "A tricky slope — hazard card!" },
+  { id: "glacier-notch", name: "Glacier Notch", kind: "path", icon: "🧊", x: 280, y: 220, progress: 2,
+    links: ["fog-bay", "manoomin-arm"], art: "assets/stop-glacial-lakes.jpg", blurb: "Ice-carved stone." },
+  { id: "birch-point", name: "Birch Point", kind: "path", icon: "🌳", x: 280, y: 360, progress: 2,
+    links: ["fog-bay", "reed-shore", "manoomin-arm", "cedar-camp"], blurb: "White bark trail." },
+  { id: "sugar-bend", name: "Sugar Bend", kind: "path", icon: "🍁", x: 280, y: 500, progress: 2,
+    links: ["reed-shore", "cedar-camp", "fox-ledge"], art: "assets/stop-maple-sugaring.jpg", blurb: "Sweet spring air." },
+  { id: "otter-cove", name: "Otter Cove", kind: "path", icon: "🦦", x: 280, y: 620, progress: 2,
+    links: ["reed-shore", "fox-ledge"], blurb: "Ripples and laughter." },
 
-  // ── Mid marsh hub ──
-  { id: "manoomin-inlet", name: "Manoomin Inlet", kind: "challenge", icon: "🌾", x: 400, y: 460,
-    links: ["glacier-shelf", "reed-cut", "sugar-trail", "cliff-ledge", "carry-path", "camp-cedar"],
-    minigame: "rice", art: "assets/stop-manoomin.jpg",
-    blurb: "Wild rice beds. Challenge: harvest respectfully." },
+  { id: "manoomin-arm", name: "Manoomin Arm", kind: "path", icon: "🌾", x: 400, y: 280, progress: 3,
+    links: ["glacier-notch", "birch-point", "pictograph-wall", "carry-rise"],
+    art: "assets/stop-manoomin.jpg", blurb: "Wild rice shallows." },
+  { id: "cedar-camp", name: "Cedar Camp", kind: "path", icon: "🏕️", x: 400, y: 430, progress: 3,
+    links: ["birch-point", "sugar-bend", "carry-rise", "hunt-cut"], blurb: "Smoke and stories." },
+  { id: "fox-ledge", name: "Fox Ledge", kind: "path", icon: "🦊", x: 400, y: 580, progress: 3,
+    links: ["sugar-bend", "otter-cove", "hunt-cut"], blurb: "A steep scramble." },
 
-  { id: "camp-cedar", name: "Cedar Camp", kind: "camp", icon: "🏕️", x: 400, y: 600,
-    links: ["manoomin-inlet", "portage-foot", "carry-path"], blurb: "Rest, share food, warm up." },
+  { id: "pictograph-wall", name: "Pictograph Wall", kind: "path", icon: "🎨", x: 520, y: 200, progress: 4,
+    links: ["manoomin-arm", "trade-ford"], art: "assets/stop-pictographs.jpg", blurb: "Look, don't touch." },
+  { id: "carry-rise", name: "Great Portage", kind: "path", icon: "🥾", x: 520, y: 360, progress: 4,
+    links: ["manoomin-arm", "cedar-camp", "trade-ford", "pipe-knoll"],
+    art: "assets/stop-portage-carry.jpg", blurb: "Shoulder the canoe." },
+  { id: "hunt-cut", name: "Hunt Cut", kind: "path", icon: "🦌", x: 520, y: 520, progress: 4,
+    links: ["cedar-camp", "fox-ledge", "pipe-knoll", "fish-pool"],
+    art: "assets/stop-hunt-forage.jpg", blurb: "Tracks in the moss." },
 
-  { id: "cliff-ledge", name: "Pictograph Ledge", kind: "challenge", icon: "🎨", x: 520, y: 340,
-    links: ["manoomin-inlet", "hunt-grove", "trade-creek"],
-    minigame: "memory", art: "assets/stop-pictographs.jpg",
-    blurb: "Match the cliff symbols. Look, don't touch." },
-  { id: "carry-path", name: "Great Portage", kind: "challenge", icon: "🥾", x: 520, y: 520,
-    links: ["manoomin-inlet", "camp-cedar", "hunt-grove", "pipe-rise"],
-    minigame: "portage", art: "assets/stop-portage-carry.jpg",
-    blurb: "Carry the canoe between waters." },
-  { id: "portage-foot", name: "Portage Foot", kind: "path", icon: "👣", x: 400, y: 720,
-    links: ["fox-run", "camp-cedar", "pipe-rise"], blurb: "Muddy boots and tired grins." },
+  { id: "trade-ford", name: "Trade Ford", kind: "path", icon: "⚓", x: 650, y: 260, progress: 5,
+    links: ["pictograph-wall", "carry-rise", "bdote-bluff", "fur-bar"], blurb: "Goods change hands." },
+  { id: "pipe-knoll", name: "Pipe Knoll", kind: "path", icon: "🔴", x: 650, y: 420, progress: 5,
+    links: ["carry-rise", "hunt-cut", "fur-bar", "dig-flat"],
+    art: "assets/stop-pipestone.jpg", blurb: "A teaching about red stone." },
+  { id: "fish-pool", name: "Fish Pool", kind: "path", icon: "🐟", x: 650, y: 580, progress: 5,
+    links: ["hunt-cut", "dig-flat"], blurb: "Clear water, quick hands." },
 
-  // ── Mid branches ──
-  { id: "hunt-grove", name: "Hunt & Forage", kind: "challenge", icon: "🦌", x: 640, y: 400,
-    links: ["cliff-ledge", "carry-path", "bdote-overlook", "trade-creek"],
-    minigame: "forage", art: "assets/stop-hunt-forage.jpg",
-    blurb: "Gather what the woods offer — carefully." },
-  { id: "pipe-rise", name: "Pipestone Teaching", kind: "knowledge", icon: "🔴", x: 640, y: 620,
-    links: ["carry-path", "portage-foot", "trade-creek", "dig-bench"],
-    art: "assets/stop-pipestone.jpg",
-    blurb: "A teaching about sacred red stone and peace." },
+  { id: "bdote-bluff", name: "Bdote Bluff", kind: "path", icon: "🏞️", x: 780, y: 220, progress: 6,
+    links: ["trade-ford", "rapids-gate"], art: "assets/stop-bdote.jpg", blurb: "Rivers meet below." },
+  { id: "fur-bar", name: "Fur Bar", kind: "path", icon: "🦫", x: 780, y: 380, progress: 6,
+    links: ["trade-ford", "pipe-knoll", "rapids-gate", "spring-head"],
+    art: "assets/stop-fur-trade.jpg", blurb: "Old exchange ground." },
+  { id: "dig-flat", name: "Practice Dig", kind: "path", icon: "🔎", x: 780, y: 540, progress: 6,
+    links: ["pipe-knoll", "fish-pool", "spring-head"],
+    art: "assets/stop-dig-site.jpg", blurb: "Careful trowel work." },
 
-  { id: "trade-creek", name: "Trade Creek", kind: "path", icon: "⚓", x: 760, y: 500,
-    links: ["cliff-ledge", "hunt-grove", "pipe-rise", "fur-landing", "bdote-overlook"],
-    blurb: "Beads, copper, and stories cross hands." },
+  { id: "rapids-gate", name: "Rapids Gate", kind: "path", icon: "🌊", x: 910, y: 280, progress: 7,
+    links: ["bdote-bluff", "fur-bar", "eagle-perch"], blurb: "White water ahead." },
+  { id: "spring-head", name: "Spring Head", kind: "path", icon: "💧", x: 910, y: 460, progress: 7,
+    links: ["fur-bar", "dig-flat", "eagle-perch", "council"],
+    art: "assets/stop-headwaters.jpg", blurb: "The river's quiet start." },
 
-  { id: "bdote-overlook", name: "Bdote Overlook", kind: "knowledge", icon: "🏞️", x: 760, y: 340,
-    links: ["hunt-grove", "trade-creek", "fur-landing"],
-    art: "assets/stop-bdote.jpg",
-    blurb: "Where great rivers meet — a place of deep meaning." },
+  { id: "eagle-perch", name: "Eagle Perch", kind: "path", icon: "🦅", x: 1030, y: 340, progress: 8,
+    links: ["rapids-gate", "spring-head", "council"], blurb: "One last ridge." },
 
-  { id: "fur-landing", name: "Fur Trade Landing", kind: "knowledge", icon: "🦫", x: 880, y: 440,
-    links: ["trade-creek", "bdote-overlook", "dig-bench", "headwater-spring"],
-    art: "assets/stop-fur-trade.jpg",
-    blurb: "Nations traded here long before maps said 'discovered'." },
-
-  { id: "dig-bench", name: "Practice Dig", kind: "challenge", icon: "🔎", x: 880, y: 600,
-    links: ["pipe-rise", "fur-landing", "headwater-spring"],
-    minigame: "dig", art: "assets/stop-dig-site.jpg",
-    blurb: "Practice archaeology — slow, careful, respectful." },
-
-  { id: "headwater-spring", name: "Headwater Spring", kind: "path", icon: "💧", x: 1000, y: 500,
-    links: ["fur-landing", "dig-bench", "rapids-gate", "council"],
-    art: "assets/stop-headwaters.jpg",
-    blurb: "The river begins as a clear trickle." },
-
-  { id: "rapids-gate", name: "Rapids Gate", kind: "hazard", icon: "🌊", x: 1000, y: 360,
-    links: ["headwater-spring", "council"], blurb: "White water ahead — hazard!" },
-
-  // ── Finish ──
-  { id: "council", name: "Council of Stories", kind: "council", icon: "🔥", x: 1120, y: 500,
-    links: ["headwater-spring", "rapids-gate"], art: "assets/stop-finale.jpg",
-    blurb: "Open the Bundle. Share what you carried." },
+  { id: "council", name: "Council of Stories", kind: "finish", icon: "🔥", x: 1140, y: 390, progress: 9,
+    links: ["spring-head", "eagle-perch"], art: "assets/stop-finale.jpg",
+    blurb: "Reach here first to win the Great Portage." },
 ];
+
+export const FINISH_ID = "council";
+export const MINIGAME_POOL = ["rice", "memory", "dig", "portage", "forage"];
 
 export function getSpace(id) {
   return BOARD.find((s) => s.id === id) || null;
@@ -97,16 +80,12 @@ export function boardIndex(id) {
   return BOARD.findIndex((s) => s.id === id);
 }
 
-/** Undirected adjacency list. */
 export function neighbors(id) {
   const s = getSpace(id);
   return s ? [...(s.links || [])] : [];
 }
 
-/**
- * Spaces whose shortest path is exactly `steps` hops.
- * Returns Map<spaceId, path[]>
- */
+/** Shortest-path destinations exactly `steps` hops away. */
 export function destinationsAtDistance(fromId, steps) {
   const found = new Map();
   const prev = new Map([[fromId, null]]);
@@ -117,7 +96,6 @@ export function destinationsAtDistance(fromId, steps) {
     const id = queue.shift();
     const d = dist.get(id);
     if (d === steps && id !== fromId) {
-      // rebuild path
       const path = [];
       let cur = id;
       while (cur) {
@@ -138,27 +116,26 @@ export function destinationsAtDistance(fromId, steps) {
   return found;
 }
 
-/** All spaces within 1..maxSteps for preview glow. */
-export function destinationsUpTo(fromId, maxSteps) {
-  const all = new Map();
-  for (let s = 1; s <= maxSteps; s++) {
-    for (const [id, path] of destinationsAtDistance(fromId, s)) {
-      if (!all.has(id)) all.set(id, { steps: s, path });
-    }
-  }
+/** Prefer forward (higher progress / further east). Still allow exact hop distance. */
+export function forwardDestinations(fromId, steps) {
+  const from = getSpace(fromId);
+  const all = destinationsAtDistance(fromId, steps);
+  const forward = [...all.entries()].filter(([id]) => {
+    const s = getSpace(id);
+    if (!s || !from) return true;
+    return s.progress > from.progress || (s.progress === from.progress && s.x >= from.x);
+  });
+  if (forward.length) return new Map(forward);
   return all;
 }
 
-export function spaceLabel(space) {
-  if (!space) return "?";
-  const kindTag = {
-    start: "Start",
-    path: "Trail",
-    knowledge: "Story Card",
-    challenge: "Challenge",
-    camp: "Camp",
-    hazard: "Hazard",
-    council: "Council",
-  }[space.kind] || space.kind;
-  return `${space.icon || ""} ${space.name} · ${kindTag}`;
+export function bestForwardMove(fromId, steps) {
+  const opts = [...forwardDestinations(fromId, steps).keys()];
+  if (!opts.length) return null;
+  opts.sort((a, b) => {
+    const sa = getSpace(a);
+    const sb = getSpace(b);
+    return (sb.progress - sa.progress) || (sb.x - sa.x);
+  });
+  return opts[0];
 }

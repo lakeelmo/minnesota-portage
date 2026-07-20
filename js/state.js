@@ -4,12 +4,12 @@ import {
   getWeapon,
   getAilment,
   pickRandom,
-} from "./data.js";
-import { CLOTHING, getClothing, CHARACTERS } from "./characters.js";
-import { getAnimal } from "./animals.js";
-import { BOARD } from "./board.js";
+} from "./data.js?v=race8";
+import { CLOTHING, getClothing, CHARACTERS } from "./characters.js?v=race8";
+import { getAnimal } from "./animals.js?v=race8";
+import { BOARD } from "./board.js?v=race8";
 
-const SAVE_KEY = "minnesota-portage-v6";
+const SAVE_KEY = "minnesota-portage-v8";
 
 export function createEmptySetup() {
   return {
@@ -20,7 +20,6 @@ export function createEmptySetup() {
   };
 }
 
-/** Draft uses the character's real name — no free-typing. */
 export function createPlayerDraft(index) {
   const char = CHARACTERS[index % CHARACTERS.length];
   return {
@@ -29,18 +28,41 @@ export function createPlayerDraft(index) {
     characterId: char.id,
     powerId: "time-echo",
     clothingId: "none",
+    isCpu: false,
+    position: "start",
+  };
+}
+
+function makeCpuPlayer(humanCharacterIds) {
+  const taken = new Set(humanCharacterIds);
+  const ch = CHARACTERS.find((c) => !taken.has(c.id)) || CHARACTERS[1];
+  return {
+    id: "cpu",
+    name: `${ch.name} (CPU)`,
+    characterId: ch.id,
+    powerId: "puzzle-master",
+    clothingId: "none",
+    isCpu: true,
+    position: "start",
   };
 }
 
 export function startRun(setup) {
   const diff = DIFFICULTIES[setup.difficulty] || DIFFICULTIES.medium;
-  const players = setup.players.map((p) => {
+  let players = setup.players.map((p) => {
     const ch = CHARACTERS.find((c) => c.id === p.characterId);
     return {
       ...p,
       name: ch?.name || p.name || "Traveler",
+      isCpu: false,
+      position: "start",
     };
   });
+
+  // Solo → add computer rival
+  if (players.length === 1) {
+    players = [...players, makeCpuPlayer(players.map((p) => p.characterId))];
+  }
 
   return {
     phase: "board",
@@ -65,19 +87,19 @@ export function startRun(setup) {
     ailments: [],
     animalFriends: [],
     companion: null,
-    storyStones: 0,
     questTitle: "The St. Croix Great Portage",
     board: BOARD,
-    position: "start",
+    diceFace: null,
     dice: null,
     turnPhase: "roll",
     legal: [],
     usedQuizIds: [],
+    lastPosition: null,
     activePlayer: 0,
     score: 0,
     learned: [],
     artifacts: [],
-    hintsLeft: players.filter((p) => p.powerId === "time-echo").length,
+    hintsLeft: players.filter((p) => !p.isCpu && p.powerId === "time-echo").length,
     strongArms: players.some((p) => p.powerId === "strong-arms"),
     speedyFeet: players.some((p) => p.powerId === "speedy-feet"),
     animalFriendPower: players.some((p) => p.powerId === "animal-friend"),
@@ -88,10 +110,11 @@ export function startRun(setup) {
     questionsCorrect: 0,
     questionsTotal: 0,
     restsUsed: 0,
-    log: ["The board is ready. Roll the die to travel the valley."],
+    log: ["Race the valley — first to the Council wins."],
     encounter: null,
     gameOver: false,
     won: false,
+    winnerId: null,
   };
 }
 
@@ -104,11 +127,9 @@ export function addItem(state, id) {
   if (!item) return state;
   return { ...state, inventory: [...state.inventory, { ...item }] };
 }
-export const addFood = addItem;
 
 export function removeInventoryAt(state, index) {
-  const inventory = state.inventory.filter((_, i) => i !== index);
-  return { ...state, inventory };
+  return { ...state, inventory: state.inventory.filter((_, i) => i !== index) };
 }
 
 export function unlockClothing(state, id) {
@@ -121,10 +142,10 @@ export function unlockClothing(state, id) {
 }
 
 export function equipClothing(state, playerId, clothingId) {
-  const players = state.players.map((p) =>
-    p.id === playerId ? { ...p, clothingId } : p
-  );
-  return { ...state, players };
+  return {
+    ...state,
+    players: state.players.map((p) => (p.id === playerId ? { ...p, clothingId } : p)),
+  };
 }
 
 export function addWeapon(state, id) {
@@ -145,11 +166,7 @@ export function equipWeapon(state, id) {
 
 export function applyAilment(state, id, reason) {
   const a = getAilment(id);
-  if (!a) return state;
-  if (state.ailments.some((x) => x.id === id)) return state;
-  if (id === "the-chills" && state.warmHeart && Math.random() < 0.6) {
-    return { ...state, log: [...state.log, `Warm Heart shrugged off the chill!`] };
-  }
+  if (!a || state.ailments.some((x) => x.id === id)) return state;
   return {
     ...state,
     ailments: [...state.ailments, { id: a.id, name: a.name, emoji: a.emoji }],
@@ -170,24 +187,21 @@ export function cureAilment(state, id, reason) {
 export function addAnimalFriend(state, id) {
   if (!id || (state.animalFriends || []).includes(id)) return state;
   const a = getAnimal(id);
-  let next = {
+  return {
     ...state,
     animalFriends: [...(state.animalFriends || []), id],
-    log: [...state.log, `${a?.emoji || ""} ${a?.name || id} joined your trail family! (${a?.perk || ""})`],
+    log: [...state.log, `${a?.emoji || ""} ${a?.name || id} joined!`],
   };
-  if (a?.bonus === "hint") next = { ...next, hintsLeft: next.hintsLeft + 1 };
-  return next;
 }
 
 export function applyDamage(state, healthLoss = 0, energyLoss = 0, reason = "") {
   const health = clamp(state.health - healthLoss, 0, state.maxHealth);
   const energy = clamp(state.energy - energyLoss, 0, state.maxEnergy);
-  const gameOver = health <= 0;
   return {
     ...state,
     health,
     energy,
-    gameOver,
+    gameOver: health <= 0,
     won: false,
     log: reason ? [...state.log, reason] : state.log,
   };
@@ -202,8 +216,21 @@ export function addScore(state, points, note) {
 }
 
 export function nextPlayer(state) {
-  const activePlayer = (state.activePlayer + 1) % state.players.length;
-  return { ...state, activePlayer };
+  return { ...state, activePlayer: (state.activePlayer + 1) % state.players.length };
+}
+
+export function ensureCpuRival(state) {
+  if (!state?.players?.length) return state;
+  const humans = state.players.filter((p) => !p.isCpu);
+  const hasCpu = state.players.some((p) => p.isCpu);
+  if (humans.length === 1 && !hasCpu) {
+    return {
+      ...state,
+      mode: "boardgame",
+      players: [...state.players, makeCpuPlayer(humans.map((p) => p.characterId))],
+    };
+  }
+  return { ...state, mode: state.mode || "boardgame" };
 }
 
 export function saveRun(state) {
@@ -217,11 +244,10 @@ export function loadRun() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
     const state = JSON.parse(raw);
-    if (!state || state.mode !== "boardgame") return null;
-    if (!state.position) state.position = "start";
-    if (!state.usedQuizIds) state.usedQuizIds = [];
-    if (!state.turnPhase) state.turnPhase = "roll";
-    return state;
+    if (!state || (state.mode && state.mode !== "boardgame")) return null;
+    if (!state.players?.[0]) return null;
+    state.players = state.players.map((p) => ({ ...p, position: p.position || "start" }));
+    return ensureCpuRival(state);
   } catch (_) {
     return null;
   }
@@ -230,7 +256,8 @@ export function loadRun() {
 export function clearSave() {
   try {
     localStorage.removeItem(SAVE_KEY);
-    // Also clear legacy key so Continue doesn't revive the old map mode.
+    localStorage.removeItem("minnesota-portage-v7");
+    localStorage.removeItem("minnesota-portage-v6");
     localStorage.removeItem("minnesota-portage-v5");
   } catch (_) {}
 }

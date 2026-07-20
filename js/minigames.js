@@ -1,4 +1,4 @@
-import { shuffle } from "./data.js";
+import { shuffle } from "./data.js?v=race8";
 
 /** Archaeology dig: find artifacts in a 4x4 grid. */
 export function createDigGame({ attempts = 5, artifactCount = 4 } = {}) {

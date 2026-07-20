@@ -1,22 +1,20 @@
 /**
- * Minnesota Portage — the quest (board-game edition).
+ * Minnesota Portage — race quest copy.
  */
 
 export const QUEST = {
   title: "The St. Croix Great Portage",
   itemName: "Story Bundle",
   itemEmoji: "📜",
-  stoneName: "Story Stone",
-  stoneEmoji: "🪨",
   goalStops: "Council of Stories",
   short:
-    "A turn-based board game of the St. Croix valley: roll the die, choose your path, draw Story Cards, and finish challenges to fill your Bundle.",
+    "Race left-to-right across the St. Croix valley. Roll 1, 2, 3 — or 🎮 for a trail challenge. Answer true to stay. First to the Council wins.",
   briefing: (playerName) =>
-    `${playerName}, the Council of Stories has trusted you with a birchbark Story Bundle.
+    `${playerName}, race the water roads to the <strong>Council of Stories</strong>.
 <br><br>
-<strong>Each turn:</strong> roll the die, then move exactly that many spaces along the board.
-Branches mean strategy — pick the path that fits your stones and stamina.
+<strong>Die faces:</strong> <span class="die-chip">1</span> <span class="die-chip">2</span> <span class="die-chip">3</span> spaces — or <span class="die-chip">🎮</span> a fullscreen trail challenge (~2 in 5 rolls).
 <br><br>
-<strong>Spaces:</strong> Story Cards (trivia, never the same card twice), Challenges (minigames), Camps, and Hazards.
-Earn Story Stones, then reach the <strong>Council of Stories</strong> with a full Bundle.`,
+Land on a glowing space, then <strong>answer a question to stay</strong>. Miss and you bounce back.
+<br><br>
+Solo explorers race a <strong>blue CPU rival</strong> (you’ll see their questions too). First to the finish wins.`,
 };

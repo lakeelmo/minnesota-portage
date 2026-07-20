@@ -1,11 +1,19 @@
 /**
- * Minnesota Portage — turn-based board game rules.
- * Roll → pick a glowing space exactly N hops away → resolve card/challenge → next player.
+ * Minnesota Portage — race rules.
+ * Die: 1 / 2 / 3 / 🎮 minigame → move (if number) → quiz to stay → next player.
+ * Solo games get a CPU rival. First to Finish (after a correct quiz) wins.
  */
 
-import { BOARD, getSpace, destinationsAtDistance, boardIndex } from "./board.js";
-import { drawStoryCard } from "./quizdeck.js";
-import { DIFFICULTIES, pickRandom, FOES, shuffle } from "./data.js";
+import {
+  BOARD,
+  getSpace,
+  forwardDestinations,
+  bestForwardMove,
+  FINISH_ID,
+  MINIGAME_POOL,
+} from "./board.js?v=race8";
+import { drawStoryCard } from "./quizdeck.js?v=race8";
+import { DIFFICULTIES, pickRandom, shuffle } from "./data.js?v=race8";
 import {
   createDigGame,
   digAt,
@@ -15,40 +23,62 @@ import {
   createRiceGame,
   tickRiceGame,
   catchRicePod,
-} from "./minigames.js";
-import { ARCADE_META, isArcadeType } from "./arcade.js";
-import { addScore, applyDamage, clamp, nextPlayer, getActivePlayer, addItem } from "./state.js";
-import { QUEST } from "./quest.js";
+} from "./minigames.js?v=race8";
+import { ARCADE_META, isArcadeType } from "./arcade.js?v=race8";
+import { addScore, applyDamage, clamp, getActivePlayer } from "./state.js?v=race8";
+import { QUEST } from "./quest.js?v=race8";
 
-export function rollDie(difficulty) {
-  // Beginner: 1–4 (gentler board). Medium/Hard: 1–6.
-  const faces = difficulty === "beginner" ? 4 : 6;
-  return 1 + Math.floor(Math.random() * faces);
+export const DIE_FACES = [
+  { type: "move", value: 1, label: "1" },
+  { type: "move", value: 2, label: "2" },
+  { type: "move", value: 3, label: "3" },
+  { type: "minigame", value: "minigame", label: "🎮" },
+];
+
+/** Weighted roll: ~20% each for 1/2/3, ~40% challenge so kids see minigames often. */
+export function rollDie() {
+  const bag = [
+    DIE_FACES[0],
+    DIE_FACES[1],
+    DIE_FACES[2],
+    DIE_FACES[3],
+    DIE_FACES[3],
+  ];
+  return pickRandom(bag);
+}
+
+export function playerPosition(state, playerIndex = state.activePlayer) {
+  return state.players[playerIndex]?.position || "start";
 }
 
 export function legalMoves(state) {
-  const here = state.position;
-  const roll = state.dice || 0;
-  if (!here || !roll) return [];
-  return [...destinationsAtDistance(here, roll).keys()];
+  if (state.turnPhase !== "pick" || state.diceFace?.type !== "move") return [];
+  const here = playerPosition(state);
+  const steps = state.diceFace.value;
+  return [...forwardDestinations(here, steps).keys()];
 }
 
 export function beginBoard(state) {
+  const players = state.players.map((p) => ({
+    ...p,
+    position: "start",
+  }));
   return {
     ...state,
+    players,
     phase: "board",
-    position: "start",
+    diceFace: null,
     dice: null,
-    turnPhase: "roll", // roll | pick | resolve
+    turnPhase: "roll",
     legal: [],
     usedQuizIds: [],
-    storyStones: 0,
+    lastPosition: null,
     encounter: {
       kind: "intro",
       title: QUEST.title,
-      text: QUEST.briefing(getActivePlayer(state)?.name || "Traveler", state.companion?.name),
+      text: QUEST.briefing(players[0]?.name || "Traveler"),
     },
-    log: [...(state.log || []), "The board is set. Roll when ready."],
+    log: [...(state.log || []), "Race to the Council. Roll when ready."],
   };
 }
 
@@ -58,16 +88,39 @@ export function dismissIntro(state) {
 
 export function doRoll(state) {
   if (state.turnPhase !== "roll" || state.encounter) return state;
-  const dice = rollDie(state.difficulty);
-  const legal = [...destinationsAtDistance(state.position, dice).keys()];
-  // If somehow boxed in (rare), allow any neighbor as a free step.
-  const fallback = legal.length ? legal : (getSpace(state.position)?.links || []);
+  const face = rollDie();
+  if (face.type === "minigame") {
+    return {
+      ...challengeEncounter(
+        {
+          ...state,
+          diceFace: face,
+          dice: face.label,
+          legal: [],
+          turnPhase: "resolve",
+          log: [...state.log, `${getActivePlayer(state)?.name} rolled 🎮 Challenge!`],
+        },
+        { id: "dice-challenge", name: "Trail Challenge", icon: "🎮", blurb: "Win to keep your edge." },
+        true
+      ),
+    };
+  }
+
+  const here = playerPosition(state);
+  const legal = [...forwardDestinations(here, face.value).keys()];
+  const fallback = legal.length ? legal : (getSpace(here)?.links || []).filter((id) => {
+    const s = getSpace(id);
+    const cur = getSpace(here);
+    return s && cur && s.progress >= cur.progress;
+  });
+
   return {
     ...state,
-    dice,
+    diceFace: face,
+    dice: face.value,
     legal: fallback,
     turnPhase: "pick",
-    log: [...state.log, `Rolled a ${dice}. Choose a glowing space.`],
+    log: [...state.log, `${getActivePlayer(state)?.name} rolled ${face.value}. Tap a glowing space.`],
   };
 }
 
@@ -77,33 +130,27 @@ export function chooseMove(state, spaceId) {
   const space = getSpace(spaceId);
   if (!space) return state;
 
+  const idx = state.activePlayer;
+  const prev = state.players[idx].position;
+  const players = state.players.map((p, i) =>
+    i === idx ? { ...p, position: spaceId } : p
+  );
+
   let next = {
     ...state,
-    position: spaceId,
+    players,
+    lastPosition: prev,
     turnPhase: "resolve",
     legal: [],
-    log: [...state.log, `Moved to ${space.name}.`],
+    log: [...state.log, `Moved to ${space.name}. Answer to stay!`],
   };
-  return resolveLanding(next, space);
+  return quizToStay(next, space);
 }
 
-function resolveLanding(state, space) {
-  if (space.kind === "start") return endTurn(state, "Back at the landing.");
-  if (space.kind === "camp") return campEncounter(state, space);
-  if (space.kind === "hazard") return hazardEncounter(state, space);
-  if (space.kind === "challenge") return challengeEncounter(state, space);
-  if (space.kind === "knowledge") return storyEncounter(state, space, true);
-  if (space.kind === "path") {
-    // Trail spaces: mostly Story Cards, sometimes a light event.
-    if (Math.random() < 0.7) return storyEncounter(state, space, false);
-    return pathEvent(state, space);
-  }
-  if (space.kind === "council") return councilEncounter(state, space);
-  return endTurn(state);
-}
-
-function storyEncounter(state, space, stoneOnCorrect) {
+/** Every landing requires a correct Story Card to remain. */
+function quizToStay(state, space) {
   const { card, usedIds, reshuffled } = drawStoryCard(state.usedQuizIds || []);
+  const atFinish = space.id === FINISH_ID || space.kind === "finish";
   return {
     ...state,
     usedQuizIds: usedIds,
@@ -111,28 +158,28 @@ function storyEncounter(state, space, stoneOnCorrect) {
       kind: "story-card",
       space,
       card,
-      stoneOnCorrect,
       answered: false,
-      title: `📜 Story Card · ${card.topic}`,
+      stayOrBounce: true,
+      winOnCorrect: atFinish,
+      title: atFinish ? "🔥 Finish line question!" : `📜 Stay on ${space.name}?`,
       reshuffled,
     },
     log: [
       ...state.log,
-      reshuffled ? "Story deck reshuffled." : `Drew a Story Card (${card.topic}).`,
+      reshuffled ? "Question deck reshuffled." : `Question for ${space.name}.`,
     ],
   };
 }
 
-function challengeEncounter(state, space) {
-  const type = space.minigame || "dig";
+function challengeEncounter(state, space, fromDice = false) {
+  const type = pickRandom(MINIGAME_POOL);
   let game;
   if (type === "dig") {
-    game = createDigGame({ attempts: state.difficulty === "hard" ? 4 : state.difficulty === "beginner" ? 6 : 5 });
+    game = createDigGame({ attempts: state.difficulty === "hard" ? 4 : 6 });
   } else if (type === "memory") {
-    const pairs = state.puzzleMaster ? 3 : state.difficulty === "hard" ? 6 : 4;
-    game = createMemoryGame({ pairs });
+    game = createMemoryGame({ pairs: state.puzzleMaster ? 3 : 4 });
   } else if (type === "rice") {
-    game = createRiceGame({ goal: state.puzzleMaster ? 5 : 7, ticks: state.puzzleMaster ? 48 : 40 });
+    game = createRiceGame({ goal: state.puzzleMaster ? 5 : 7, ticks: 42 });
   } else if (isArcadeType(type)) {
     game = { type, arcade: true, done: false, message: ARCADE_META[type]?.blurb || "Challenge!" };
   } else {
@@ -143,104 +190,15 @@ function challengeEncounter(state, space) {
     encounter: {
       kind: "minigame",
       space,
-      stop: spaceToStop(space),
-      title: `${space.icon || ""} ${space.name}`,
+      fromDice,
+      title: `${space.icon || "🎮"} ${space.name}`,
+      blurb: ARCADE_META[type]?.blurb || space.blurb || "Use arrows and clicks.",
+      controls: ARCADE_META[type]?.controls
+        || (type === "rice" ? "Click ripe 🌾 pods · leave 🌱 alone"
+          : type === "memory" ? "Click cards to match pairs"
+            : type === "dig" ? "Click squares to dig"
+              : "Arrow keys + click / Space"),
       game,
-    },
-  };
-}
-
-function spaceToStop(space) {
-  return {
-    id: space.id,
-    name: space.name,
-    icon: space.icon,
-    art: space.art,
-    beat: space.blurb,
-    learn: space.blurb,
-    minigame: space.minigame,
-    type: space.kind === "challenge" ? "minigame" : space.kind,
-  };
-}
-
-function campEncounter(state, space) {
-  const health = clamp(state.health + 12, 0, state.maxHealth);
-  const energy = clamp(state.energy + 18, 0, state.maxEnergy);
-  return {
-    ...state,
-    health,
-    energy,
-    encounter: {
-      kind: "camp",
-      space,
-      title: `🏕️ ${space.name}`,
-      text: "You rest under cedar. Health and energy recover. Ready for the next roll?",
-    },
-    log: [...state.log, "Camp rest — feeling better."],
-  };
-}
-
-function hazardEncounter(state, space) {
-  const foe = pickRandom(FOES);
-  return {
-    ...state,
-    enemiesFaced: (state.enemiesFaced || 0) + 1,
-    encounter: {
-      kind: "hazard",
-      space,
-      foe,
-      title: `⚠️ Hazard · ${space.name}`,
-      text: foe.line,
-    },
-  };
-}
-
-function pathEvent(state, space) {
-  const events = [
-    { text: "A friendly traveler shares maple candy.", gift: "maple-candy", score: 8 },
-    { text: "You spot blueberries beside the trail.", gift: "blueberry", score: 6 },
-    { text: "Calm water — you paddle with ease (+energy).", energy: 10, score: 5 },
-    { text: "A heron shows the channel. +score!", score: 12 },
-  ];
-  const ev = pickRandom(events);
-  let next = { ...state, log: [...state.log, ev.text] };
-  if (ev.gift) next = addItem(next, ev.gift);
-  if (ev.energy) next = { ...next, energy: clamp(next.energy + ev.energy, 0, next.maxEnergy) };
-  if (ev.score) next = addScore(next, ev.score, "Trail event");
-  return {
-    ...next,
-    encounter: {
-      kind: "event",
-      space,
-      title: `${space.icon || "👣"} ${space.name}`,
-      text: ev.text,
-    },
-  };
-}
-
-function councilEncounter(state, space) {
-  const need = state.difficulty === "beginner" ? 4 : state.difficulty === "hard" ? 7 : 5;
-  const stones = state.storyStones || 0;
-  if (stones < need) {
-    return {
-      ...state,
-      encounter: {
-        kind: "council-gate",
-        space,
-        title: "🔥 Council of Stories",
-        text: `The elders welcome you — but the Bundle still feels light. Gather at least ${need} Story Stones (you have ${stones}), then return.`,
-        need,
-      },
-    };
-  }
-  return {
-    ...state,
-    encounter: {
-      kind: "finale",
-      space,
-      stop: spaceToStop(space),
-      title: "🔥 Council of Stories",
-      text: `You arrive with ${stones} Story Stones. Open the Bundle and share what you carried.`,
     },
   };
 }
@@ -250,34 +208,65 @@ export function answerStoryCard(state, choiceIndex) {
   if (!enc || enc.kind !== "story-card" || enc.answered) return state;
   const correct = choiceIndex === enc.card.answer;
   const diff = DIFFICULTIES[state.difficulty];
+  const active = getActivePlayer(state);
+
   let next = {
     ...state,
     questionsTotal: (state.questionsTotal || 0) + 1,
     questionsCorrect: (state.questionsCorrect || 0) + (correct ? 1 : 0),
-    encounter: { ...enc, answered: true, picked: choiceIndex, correct },
+    encounter: {
+      ...enc,
+      answered: true,
+      picked: choiceIndex,
+      correct,
+      cpuReveal: !!active?.isCpu,
+    },
   };
+
   if (correct) {
-    next = addScore(next, enc.stoneOnCorrect ? 25 : 15, "Story Card correct");
-    if (enc.stoneOnCorrect) {
+    next = addScore(next, enc.winOnCorrect ? 40 : 18, "Correct");
+    next = {
+      ...next,
+      learned: [...(next.learned || []), enc.card.teach],
+      log: [...next.log, `✓ ${active?.name} stays on ${enc.space?.name}.`],
+    };
+    if (enc.winOnCorrect) {
+      return {
+        ...next,
+        won: true,
+        gameOver: true,
+        winnerId: active?.id,
+        encounter: {
+          kind: "victory",
+          title: `${active?.name} wins the Portage!`,
+          text: `${active?.name} reached the Council and answered true. Great challenge!`,
+        },
+        log: [...next.log, `${active?.name} wins!`],
+      };
+    }
+  } else {
+    next = applyDamage(next, Math.round(diff.quizWrongDamage * 0.5), 3, "Wrong — sent back!");
+    // Bounce to previous space
+    if (enc.stayOrBounce && next.lastPosition) {
+      const idx = next.activePlayer;
+      const players = next.players.map((p, i) =>
+        i === idx ? { ...p, position: next.lastPosition } : p
+      );
       next = {
         ...next,
-        storyStones: (next.storyStones || 0) + 1,
-        learned: [...(next.learned || []), enc.card.teach],
-        log: [...next.log, "🪨 A Story Stone joins your Bundle!"],
+        players,
+        log: [...next.log, `✗ ${active?.name} could not stay — back to ${getSpace(next.lastPosition)?.name || "trail"}.`],
       };
     } else {
       next = {
         ...next,
         learned: [...(next.learned || []), enc.card.teach],
-        log: [...next.log, "Correct — knowledge carried."],
+        log: [...next.log, `✗ Missed — remember the teaching.`],
       };
     }
-  } else {
-    next = applyDamage(next, diff.quizWrongDamage, 4, "The Story Card stumps you — try to remember the teaching.");
     next = {
       ...next,
       learned: [...(next.learned || []), enc.card.teach],
-      log: [...next.log, "Missed — but the teaching stays with you."],
     };
   }
   return next;
@@ -285,60 +274,27 @@ export function answerStoryCard(state, choiceIndex) {
 
 export function finishStoryCard(state) {
   if (state.encounter?.kind !== "story-card") return state;
+  if (state.gameOver) return state;
   return endTurn({ ...state, encounter: null, encountersDone: (state.encountersDone || 0) + 1 });
 }
 
-export function finishCampOrEvent(state) {
-  const k = state.encounter?.kind;
-  if (k !== "camp" && k !== "event" && k !== "council-gate") return state;
-  return endTurn({ ...state, encounter: null });
+export function useStoryHint(state) {
+  const enc = state.encounter;
+  if (!enc || enc.kind !== "story-card" || enc.answered || state.hintsLeft <= 0) return state;
+  if (getActivePlayer(state)?.isCpu) return state;
+  return {
+    ...state,
+    hintsLeft: state.hintsLeft - 1,
+    encounter: { ...enc, hintShown: true },
+  };
 }
 
-export function resolveHazard(state, choice) {
-  const enc = state.encounter;
-  if (!enc || enc.kind !== "hazard") return state;
-  const diff = DIFFICULTIES[state.difficulty];
-  let next = state;
-  if (choice === "brave") {
-    // Mini math challenge
-    const a = 2 + Math.floor(Math.random() * 8);
-    const b = 2 + Math.floor(Math.random() * 8);
-    const answer = a + b;
-    const choices = shuffle([answer, answer + 1, answer - 1, answer + 2].map(String));
-    return {
-      ...next,
-      encounter: {
-        kind: "hazard-math",
-        space: enc.space,
-        title: "Quick math to slip past!",
-        question: `What is ${a} + ${b}?`,
-        choices,
-        answer: choices.indexOf(String(answer)),
-      },
-    };
-  }
-  if (choice === "scare") {
-    next = addScore(next, 10, "Scared off the hazard");
-    next = { ...next, log: [...next.log, "You stand tall — the hazard backs away."] };
-    return endTurn({ ...next, encounter: null });
-  }
-  // pay toll
-  next = applyDamage(next, 0, Math.round(diff.foeDamage * 0.7), "You pay an energy toll and move on.");
-  return endTurn({ ...next, encounter: null });
-}
-
-export function resolveHazardMath(state, choiceIndex) {
-  const enc = state.encounter;
-  if (!enc || enc.kind !== "hazard-math") return state;
-  const diff = DIFFICULTIES[state.difficulty];
-  let next = state;
-  if (choiceIndex === enc.answer) {
-    next = addScore(next, 14, "Hazard math win");
-    next = { ...next, log: [...next.log, "Math clears the path!"] };
-  } else {
-    next = applyDamage(next, diff.foeDamage, 6, "The hazard nips you — ouch.");
-  }
-  return endTurn({ ...next, encounter: null });
+function minigameWon(game) {
+  if (!game) return false;
+  if (game.won) return true;
+  if (game.type === "dig") return (game.found?.length || 0) >= 3;
+  if (game.type === "memory") return !!game.done && (game.cards || []).every((c) => c.matched);
+  return !!game.won;
 }
 
 export function handleBoardMinigame(state, action) {
@@ -354,15 +310,6 @@ export function handleBoardMinigame(state, action) {
   return { ...state, encounter: { ...enc, game } };
 }
 
-function minigameWon(game) {
-  if (!game) return false;
-  if (game.won) return true;
-  if (game.type === "dig") return (game.found?.length || 0) >= 3;
-  if (game.type === "memory") return !!game.done && (game.cards || []).every((c) => c.matched);
-  if (game.type === "rice") return !!game.won;
-  return false;
-}
-
 export function finishBoardMinigame(state) {
   const enc = state.encounter;
   if (!enc || enc.kind !== "minigame") return state;
@@ -371,29 +318,17 @@ export function finishBoardMinigame(state) {
     ...state,
     encounter: null,
     encountersDone: (state.encountersDone || 0) + 1,
+    diceFace: null,
+    dice: null,
   };
   if (won) {
-    next = addScore(next, 20, "Challenge won");
-    next = {
-      ...next,
-      storyStones: (next.storyStones || 0) + 1,
-      log: [...next.log, "🪨 Challenge complete — Story Stone earned!"],
-    };
+    next = addScore(next, 22, "Challenge won");
+    next = { ...next, log: [...next.log, "🎮 Challenge cleared!"] };
   } else {
-    next = addScore(next, 6, "Challenge attempted");
-    next = { ...next, log: [...next.log, "Challenge done — the trail continues."] };
+    next = applyDamage(next, 3, 6, "Challenge slipped by.");
+    next = { ...next, log: [...next.log, "Challenge over — trail continues."] };
   }
   return endTurn(next);
-}
-
-export function useStoryHint(state) {
-  const enc = state.encounter;
-  if (!enc || enc.kind !== "story-card" || enc.answered || state.hintsLeft <= 0) return state;
-  return {
-    ...state,
-    hintsLeft: state.hintsLeft - 1,
-    encounter: { ...enc, hintShown: true },
-  };
 }
 
 export function finishBoardArcade(state, result) {
@@ -403,57 +338,90 @@ export function finishBoardArcade(state, result) {
     ...state,
     encounter: null,
     encountersDone: (state.encountersDone || 0) + 1,
+    diceFace: null,
+    dice: null,
   };
   if (result?.won) {
-    next = addScore(next, 22, "Arcade challenge");
-    next = {
-      ...next,
-      storyStones: (next.storyStones || 0) + 1,
-      log: [...next.log, "🪨 Portage challenge won — Story Stone!"],
-    };
+    next = addScore(next, 24, "Arcade win");
+    next = { ...next, log: [...next.log, "🎮 Challenge cleared!"] };
   } else {
-    next = applyDamage(next, 4, 8, "Tough challenge — catch your breath.");
+    next = applyDamage(next, 4, 8, "Tough challenge.");
   }
   return endTurn(next);
 }
 
-export function completeBoardFinale(state) {
-  return {
-    ...state,
-    won: true,
-    gameOver: true,
-    encounter: {
-      kind: "victory",
-      title: "Council complete!",
-      text: `You carried ${state.storyStones || 0} Story Stones to the Council. The Bundle is open — well traveled.`,
-    },
-    log: [...state.log, "Victory at the Council of Stories!"],
-  };
-}
-
 function endTurn(state, note) {
-  let next = { ...state, dice: null, legal: [], turnPhase: "roll" };
+  let next = {
+    ...state,
+    diceFace: null,
+    dice: null,
+    legal: [],
+    turnPhase: "roll",
+    lastPosition: null,
+  };
   if (note) next = { ...next, log: [...next.log, note] };
-  if ((next.players || []).length > 1) {
-    next = nextPlayer(next);
-    const p = getActivePlayer(next);
-    next = { ...next, log: [...next.log, `${p?.name || "Next"}'s turn — roll the die.`] };
-  }
-  // Soft hunger drain each turn
-  const diff = DIFFICULTIES[next.difficulty];
+
+  const n = next.players.length;
+  next = { ...next, activePlayer: (next.activePlayer + 1) % n };
+  const p = getActivePlayer(next);
   next = {
     ...next,
-    rations: clamp((next.rations || 0) - Math.round(diff.hungerDrain * 0.35), 0, next.maxRations),
-    energy: clamp(next.energy - 2, 0, next.maxEnergy),
+    log: [...next.log, `${p?.name || "Next"}'s turn.`],
+    energy: clamp(next.energy - 1, 0, next.maxEnergy),
   };
-  if (next.health <= 0) {
-    return { ...next, gameOver: true, won: false, encounter: { kind: "defeat", title: "Trail too hard", text: "Rest and try again — every portage teaches." } };
-  }
   return next;
 }
 
-export function boardProgress(state) {
-  const idx = Math.max(0, boardIndex(state.position));
-  const pct = Math.round((idx / Math.max(1, BOARD.length - 1)) * 100);
-  return { idx, total: BOARD.length, pct, stones: state.storyStones || 0 };
+/** CPU: roll, pick best forward space, or play through quiz/minigame with a chosen answer. */
+export function cpuAct(state) {
+  const p = getActivePlayer(state);
+  if (!p?.isCpu || state.gameOver) return null;
+
+  if (state.encounter?.kind === "intro") {
+    return dismissIntro(state);
+  }
+
+  if (state.encounter?.kind === "story-card" && !state.encounter.answered) {
+    // CPU answers correctly most of the time on beginner, less on hard
+    const skill = state.difficulty === "hard" ? 0.55 : state.difficulty === "beginner" ? 0.9 : 0.75;
+    const enc = state.encounter;
+    let pick = enc.card.answer;
+    if (Math.random() > skill) {
+      const wrong = enc.card.choices.map((_, i) => i).filter((i) => i !== enc.card.answer);
+      pick = pickRandom(wrong);
+    }
+    return answerStoryCard(state, pick);
+  }
+
+  if (state.encounter?.kind === "story-card" && state.encounter.answered) {
+    return finishStoryCard(state);
+  }
+
+  if (state.encounter?.kind === "minigame") {
+    // Auto-clear CPU minigames (still shown briefly in UI)
+    const game = { ...state.encounter.game, done: true, won: Math.random() > 0.35 };
+    return finishBoardMinigame({ ...state, encounter: { ...state.encounter, game } });
+  }
+
+  if (state.turnPhase === "roll") {
+    return doRoll(state);
+  }
+
+  if (state.turnPhase === "pick") {
+    const steps = state.diceFace?.value || 1;
+    const here = playerPosition(state);
+    const best = bestForwardMove(here, steps) || (state.legal || [])[0];
+    if (!best) return endTurn(state, "No move — turn skipped.");
+    return chooseMove(state, best);
+  }
+
+  return null;
 }
+
+export function boardProgress(state) {
+  const pos = playerPosition(state);
+  const s = getSpace(pos);
+  return { progress: s?.progress || 0, max: 9, at: pos };
+}
+
+export { BOARD, getSpace, FINISH_ID, shuffle };

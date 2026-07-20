@@ -5,8 +5,10 @@ import {
   saveRun,
   loadRun,
   clearSave,
-} from "./state.js";
-import { CHARACTERS } from "./characters.js";
+  getActivePlayer,
+  ensureCpuRival,
+} from "./state.js?v=race8";
+import { CHARACTERS } from "./characters.js?v=race8";
 import {
   beginBoard,
   dismissIntro,
@@ -14,15 +16,12 @@ import {
   chooseMove,
   answerStoryCard,
   finishStoryCard,
-  finishCampOrEvent,
-  resolveHazard,
-  resolveHazardMath,
   handleBoardMinigame,
   finishBoardMinigame,
   finishBoardArcade,
-  completeBoardFinale,
   useStoryHint,
-} from "./boardgame.js";
+  cpuAct,
+} from "./boardgame.js?v=race8";
 import {
   renderTitle,
   renderPartySetup,
@@ -32,8 +31,8 @@ import {
   showToast,
   syncTrail,
   syncMinigameOnly,
-} from "./ui.js";
-import { mountArcade, isArcadeType } from "./arcade.js";
+} from "./ui.js?v=race8";
+import { mountArcade, isArcadeType } from "./arcade.js?v=race8";
 
 const app = document.getElementById("app");
 
@@ -43,14 +42,23 @@ let draft = createPlayerDraft(0);
 let run = null;
 let memoryTimer = null;
 let riceTimer = null;
+let cpuTimer = null;
 let arcadeSession = null;
 let hasSave = !!loadRun();
+
+// Drop legacy saves that can revive the old trail / missing CPU
+try {
+  localStorage.removeItem("minnesota-portage-v7");
+  localStorage.removeItem("minnesota-portage-v6");
+  localStorage.removeItem("minnesota-portage-v5");
+} catch (_) {}
 
 const POWER_CYCLE = ["time-echo", "strong-arms", "speedy-feet", "animal-friend", "puzzle-master", "warm-heart"];
 
 function clearTimers() {
   if (memoryTimer) { clearTimeout(memoryTimer); memoryTimer = null; }
   if (riceTimer) { clearInterval(riceTimer); riceTimer = null; }
+  if (cpuTimer) { clearTimeout(cpuTimer); cpuTimer = null; }
 }
 function destroyArcade() {
   if (arcadeSession) { arcadeSession.destroy(); arcadeSession = null; }
@@ -58,22 +66,58 @@ function destroyArcade() {
 function mount(node) { app.innerHTML = ""; app.appendChild(node); }
 function arcadePlaying() { return Boolean(arcadeSession); }
 
+function scheduleCpu() {
+  if (cpuTimer) clearTimeout(cpuTimer);
+  cpuTimer = null;
+  if (!run || run.gameOver || screen !== "trail") return;
+  const p = getActivePlayer(run);
+  if (!p?.isCpu) return;
+
+  // Pace so humans can read CPU questions
+  let delay = 900;
+  if (run.encounter?.kind === "story-card" && !run.encounter.answered) delay = 1600;
+  if (run.encounter?.kind === "story-card" && run.encounter.answered) delay = 1400;
+  if (run.encounter?.kind === "minigame") delay = 1100;
+  if (run.turnPhase === "pick") delay = 700;
+  if (run.turnPhase === "roll" && !run.encounter) delay = 600;
+
+  cpuTimer = setTimeout(() => {
+    cpuTimer = null;
+    if (!run || getActivePlayer(run)?.id !== p.id) return;
+    const next = cpuAct(run);
+    if (next) {
+      if (next.diceFace?.type === "move") showToast(`CPU rolled ${next.diceFace.label}`);
+      if (next.diceFace?.type === "minigame") showToast("CPU rolled 🎮");
+      update(next);
+    }
+  }, delay);
+}
+
 function trailHandlers() {
   return {
     introGo: () => update(dismissIntro(run)),
     roll: () => {
+      if (getActivePlayer(run)?.isCpu) return;
       const next = doRoll(run);
-      if (next.dice) showToast(`Rolled ${next.dice} — tap a GO space`);
+      if (next.diceFace?.type === "move") showToast(`Rolled ${next.diceFace.label} — tap GO`);
+      if (next.diceFace?.type === "minigame") showToast("🎮 Challenge!");
       update(next);
     },
-    move: (id) => update(chooseMove(run, id)),
-    storyAnswer: (i) => update(answerStoryCard(run, i)),
+    move: (id) => {
+      if (getActivePlayer(run)?.isCpu) return;
+      update(chooseMove(run, id));
+    },
+    storyAnswer: (i) => {
+      if (getActivePlayer(run)?.isCpu) return;
+      update(answerStoryCard(run, i));
+    },
     storyHint: () => { update(useStoryHint(run)); showToast("Hint revealed…"); },
-    storyNext: () => update(finishStoryCard(run)),
-    ack: () => update(finishCampOrEvent(run)),
-    hazard: (choice) => update(resolveHazard(run, choice)),
-    hazardMath: (i) => update(resolveHazardMath(run, i)),
+    storyNext: () => {
+      if (getActivePlayer(run)?.isCpu) return;
+      update(finishStoryCard(run));
+    },
     mg: (action) => {
+      if (getActivePlayer(run)?.isCpu) return;
       const next = handleBoardMinigame(run, action);
       const g = next.encounter?.game;
       if (g?.type === "memory" && g.flipped?.length === 2 && !g.done) {
@@ -87,7 +131,6 @@ function trailHandlers() {
       update(next);
     },
     minigameDone: () => update(finishBoardMinigame(run)),
-    finale: () => update(completeBoardFinale(run)),
     exit: () => {
       destroyArcade();
       clearTimers();
@@ -105,7 +148,7 @@ function trailHandlers() {
 function paintTrail() {
   if (!run) { screen = "title"; paint({ remount: true }); return; }
 
-  if (run.gameOver && run.encounter?.kind !== "victory" && run.encounter?.kind !== "defeat") {
+  if (run.gameOver && run.encounter?.kind !== "victory") {
     clearSave();
     hasSave = false;
     destroyArcade();
@@ -122,6 +165,7 @@ function paintTrail() {
   if (existing && syncTrail(existing, run, handlers)) {
     maybeStartArcade();
     maybeStartRiceMole();
+    scheduleCpu();
     return;
   }
 
@@ -130,10 +174,11 @@ function paintTrail() {
   mount(renderTrail(run, handlers));
   maybeStartArcade();
   maybeStartRiceMole();
+  scheduleCpu();
 }
 
-function paint(opts = {}) {
-  if (arcadePlaying() && screen === "trail" && !opts.remount) return;
+function paint() {
+  if (arcadePlaying() && screen === "trail") return;
 
   if (screen === "title") {
     destroyArcade();
@@ -148,12 +193,14 @@ function paint(opts = {}) {
         paint({ remount: true });
       },
       () => {
-        const saved = loadRun();
+        const saved = ensureCpuRival(loadRun());
         if (saved) {
           run = saved;
+          saveRun(run);
           screen = "trail";
           paint({ remount: true });
-          showToast("Welcome back to the board!");
+          const cpu = run.players.find((p) => p.isCpu);
+          showToast(cpu ? `Welcome back — racing ${cpu.name}` : "Welcome back!");
         }
       },
       hasSave
@@ -206,7 +253,8 @@ function paint(opts = {}) {
           saveRun(run);
           hasSave = true;
           screen = "trail";
-          showToast(`${player.name} leads the first turn.`);
+          const cpu = run.players.find((p) => p.isCpu);
+          showToast(cpu ? `${player.name} vs ${cpu.name}` : "Race on!");
           paint({ remount: true });
           return;
         }
@@ -223,27 +271,25 @@ function paint(opts = {}) {
     return;
   }
 
-  if (screen === "trail") {
-    paintTrail();
-  }
+  if (screen === "trail") paintTrail();
 }
 
 function maybeStartRiceMole() {
   const g = run?.encounter?.game;
   if (!g || g.type !== "rice" || g.done || riceTimer) return;
+  if (getActivePlayer(run)?.isCpu) return;
   riceTimer = setInterval(() => {
     if (!run?.encounter?.game || run.encounter.game.type !== "rice") {
-      clearTimers();
+      if (riceTimer) { clearInterval(riceTimer); riceTimer = null; }
       return;
     }
     if (run.encounter.game.done) {
-      clearTimers();
-      update(run); // show Continue without soft tick
+      if (riceTimer) { clearInterval(riceTimer); riceTimer = null; }
+      update(run);
       return;
     }
     const next = handleBoardMinigame(run, { type: "rice-tick" });
     run = next;
-    // Soft path: do not remount the whole board every tick
     const root = app.querySelector(".board-screen");
     if (root) syncMinigameOnly(root, run, trailHandlers());
     else update(next);
@@ -253,30 +299,33 @@ function maybeStartRiceMole() {
 function maybeStartArcade() {
   const g = run?.encounter?.game;
   if (!g || !isArcadeType(g.type)) return;
+  if (getActivePlayer(run)?.isCpu) return;
   const board = app.querySelector("[data-mg]");
   if (!board || arcadeSession) return;
 
-  showToast("Arrow keys · Space · Enter to start");
+  showToast("Enter to start · Arrows move · Space action · Click also works");
   arcadeSession = mountArcade(
     board,
     g.type,
     { difficulty: run.difficulty, puzzleMaster: run.puzzleMaster, weapon: run.equippedWeapon, strongArms: run.strongArms },
     (result) => {
       destroyArcade();
-      showToast(result.won ? "Challenge cleared!" : "Trail onward…");
+      showToast(result.won ? "Challenge cleared!" : "Challenge over");
       update(finishBoardArcade(run, result));
     }
   );
+  // Enlarge canvas for fullscreen feel
+  const canvas = board.querySelector("canvas");
+  if (canvas) {
+    canvas.width = Math.min(960, Math.floor(window.innerWidth * 0.7));
+    canvas.height = Math.min(540, Math.floor(window.innerHeight * 0.55));
+  }
 }
 
 function update(next) {
   run = next;
-  if (run.gameOver && (run.won || run.encounter?.kind === "defeat")) {
-    if (run.won) { clearSave(); hasSave = false; }
-  } else if (!run.gameOver) {
-    saveRun(run);
-    hasSave = true;
-  }
+  if (run.gameOver && run.won) { clearSave(); hasSave = false; }
+  else if (!run.gameOver) { saveRun(run); hasSave = true; }
   paint();
 }
 

@@ -1,12 +1,12 @@
-import { CHARACTERS, SUPERPOWERS, renderPortrait } from "./characters.js";
-import { DIFFICULTIES, getWeapon } from "./data.js";
-import { getActivePlayer } from "./state.js";
-import { BOARD, getSpace } from "./board.js";
-import { deckRemaining } from "./quizdeck.js";
-import { QUEST } from "./quest.js";
-import { ARCADE_META, isArcadeType } from "./arcade.js";
-import { sayButton, linkNativeWords, bindSayButtons, unlockAudio } from "./audio.js";
-import { legalMoves } from "./boardgame.js";
+import { CHARACTERS, SUPERPOWERS, renderPortrait } from "./characters.js?v=race8";
+import { DIFFICULTIES } from "./data.js?v=race8";
+import { getActivePlayer } from "./state.js?v=race8";
+import { BOARD, getSpace } from "./board.js?v=race8";
+import { deckRemaining } from "./quizdeck.js?v=race8";
+import { QUEST } from "./quest.js?v=race8";
+import { ARCADE_META, isArcadeType } from "./arcade.js?v=race8";
+import { linkNativeWords, bindSayButtons, unlockAudio } from "./audio.js?v=race8";
+import { legalMoves, playerPosition } from "./boardgame.js?v=race8";
 
 export function el(html) {
   const t = document.createElement("template");
@@ -19,33 +19,30 @@ export function showToast(msg) {
   toast.textContent = msg;
   toast.classList.remove("hidden");
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => toast.classList.add("hidden"), 2600);
+  showToast._t = setTimeout(() => toast.classList.add("hidden"), 2400);
 }
 
 function clampInt(v, min, max) {
   return Math.max(min, Math.min(max, Number(v) || min));
 }
 
-/* ─────────────────────────── TITLE ─────────────────────────── */
-
 export function renderTitle(onStart, onContinue, hasSave) {
-  const cast = CHARACTERS.map((c) => c.id);
   const node = el(`
     <section class="screen title-screen">
       <div class="title-hero">
         <div class="title-hero-content">
           <div class="brand">
             <h1>Minnesota Portage</h1>
-            <p class="brand-fun">Carry the canoe. Carry the stories.</p>
+            <p class="brand-fun">Race the valley. Reach the Council.</p>
           </div>
           <p class="title-lede">${QUEST.short}</p>
           <div class="btn-row title-cta">
             <button class="btn btn-primary btn-big" data-action="start">Begin the Portage</button>
             ${hasSave ? `<button class="btn btn-blue" data-action="continue">Continue</button>` : ""}
           </div>
-          <p class="title-ages">Ages 9–11 · board game · Story Cards · landscape-ready</p>
+          <p class="title-ages">Ages 9–11 · race · questions · challenges</p>
           <div class="title-cast" aria-hidden="true">
-            ${cast.map((id) => renderPortrait(id, { size: 88, className: "title-portrait" })).join("")}
+            ${CHARACTERS.slice(0, 6).map((c) => renderPortrait(c.id, { size: 80, className: "title-portrait" })).join("")}
           </div>
         </div>
       </div>
@@ -56,17 +53,15 @@ export function renderTitle(onStart, onContinue, hasSave) {
   return node;
 }
 
-/* ─────────────────────────── PARTY + CAST (simplified) ─────────────────────────── */
-
 export function renderPartySetup(setup, handlers) {
   const node = el(`
     <section class="screen setup-screen">
       <div class="paper-card setup-card">
         <h2 class="section-title">Gather the crew</h2>
-        <p class="hint">Hotseat board game — each player picks a valley traveler (no typing names).</p>
+        <p class="hint">1 player races a CPU rival. 2–4 players hotseat. No typing names.</p>
         <div class="setup-grid two">
           <div class="field">
-            <label for="playerCount">Players</label>
+            <label for="playerCount">Human players</label>
             <input id="playerCount" type="number" min="1" max="4" value="${setup.playerCount}" />
           </div>
           <div class="field">
@@ -77,7 +72,7 @@ export function renderPartySetup(setup, handlers) {
                   ${d.label}${d.recommended ? " ⭐" : ""}
                 </button>`).join("")}
             </div>
-            <span class="hint">${DIFFICULTIES[setup.difficulty]?.tag || ""} · Beginner uses a 4-sided die</span>
+            <span class="hint">Die: 1 / 2 / 3 / 🎮 (~40% challenges). Harder = tougher CPU.</span>
           </div>
         </div>
         <div class="btn-row">
@@ -103,7 +98,7 @@ export function renderCharacterCreator(setup, draft, handlers) {
     <section class="screen setup-screen">
       <div class="paper-card setup-card cast-card">
         <h2 class="section-title">Player ${idx + 1} of ${total}</h2>
-        <p class="hint">Tap a traveler — you play as <strong>${sel.name}</strong> (${sel.nation}).</p>
+        <p class="hint">Tap a traveler — you play as <strong>${sel.name}</strong>.</p>
         <div class="cast-grid">
           ${CHARACTERS.map((c) => {
             const used = taken.has(c.id) && c.id !== draft.characterId;
@@ -128,7 +123,7 @@ export function renderCharacterCreator(setup, draft, handlers) {
         <div class="btn-row">
           <button class="btn btn-ghost" data-action="back">Back</button>
           <button class="btn btn-primary" data-action="save">
-            ${idx + 1 >= total ? "Start Board Game →" : "Next Player →"}
+            ${idx + 1 >= total ? "Start Race →" : "Next Player →"}
           </button>
         </div>
       </div>
@@ -141,28 +136,28 @@ export function renderCharacterCreator(setup, draft, handlers) {
   return node;
 }
 
-/* ─────────────────────────── BOARD TABLE ─────────────────────────── */
-
-function kindClass(kind) {
-  return `kind-${kind || "path"}`;
-}
-
 function phaseHint(state) {
   const active = getActivePlayer(state);
-  if (state.encounter) return "Resolve the card or challenge";
-  if (state.turnPhase === "pick") return `Rolled ${state.dice} — tap a bright GO space`;
-  return `${active?.name || "You"} — roll the die`;
+  if (state.encounter?.kind === "minigame") return "Full-screen challenge — arrows + click";
+  if (state.encounter) return active?.isCpu ? `CPU · ${active.name} answering…` : "Answer to stay on this space";
+  if (state.turnPhase === "pick") return `Rolled ${state.dice} — tap a glowing GO space`;
+  return `${active?.name || "You"}${active?.isCpu ? " (CPU)" : ""} — roll the die`;
 }
 
-function stonesNeed(state) {
-  return state.difficulty === "beginner" ? 4 : state.difficulty === "hard" ? 7 : 5;
+function meter(label, value, max, cls) {
+  const pct = Math.max(0, Math.min(100, Math.round((value / Math.max(1, max)) * 100)));
+  return `
+    <div class="meter ${cls}">
+      <span class="meter-label">${label}</span>
+      <div class="meter-track"><div class="meter-fill" style="width:${pct}%"></div></div>
+      <span class="meter-val">${value}</span>
+    </div>`;
 }
 
 function renderBoardSvg(state) {
-  const legal = new Set(state.turnPhase === "pick" ? (state.legal || legalMoves(state)) : []);
-  const pos = state.position;
-  const here = getSpace(pos);
-  const vb = "0 0 1200 780";
+  const legal = new Set(legalMoves(state));
+  const active = getActivePlayer(state);
+  const activePos = playerPosition(state);
 
   const edges = [];
   const seen = new Set();
@@ -180,35 +175,50 @@ function renderBoardSvg(state) {
 
   const nodes = BOARD.map((s) => {
     const glow = legal.has(s.id);
-    const isHere = s.id === pos;
+    const isHere = s.id === activePos;
     return `
-      <g class="board-node ${kindClass(s.kind)} ${isHere ? "here" : ""} ${glow ? "legal" : ""}"
-         data-space="${s.id}" ${glow ? `data-move="${s.id}"` : ""} role="button" tabindex="${glow ? 0 : -1}">
-        <circle class="legal-ring" cx="${s.x}" cy="${s.y}" r="38" />
-        <circle class="board-disc" cx="${s.x}" cy="${s.y}" r="24" />
+      <g class="board-node ${glow ? "legal" : ""} ${isHere ? "here" : ""} ${s.kind === "finish" ? "kind-finish" : ""}"
+         data-space="${s.id}" ${glow ? `data-move="${s.id}"` : ""}>
+        <circle class="legal-glow" cx="${s.x}" cy="${s.y}" r="48" />
+        <circle class="legal-ring" cx="${s.x}" cy="${s.y}" r="36" />
+        <circle class="board-disc" cx="${s.x}" cy="${s.y}" r="22" />
         <text class="board-icon" x="${s.x}" y="${s.y + 7}" text-anchor="middle">${s.icon || "•"}</text>
-        <text class="board-label" x="${s.x}" y="${s.y + 48}" text-anchor="middle">${s.name}</text>
-        <g class="legal-badge" transform="translate(${s.x}, ${s.y - 34})">
-          <rect x="-22" y="-12" width="44" height="22" rx="11" />
+        <text class="board-label" x="${s.x}" y="${s.y + 46}" text-anchor="middle">${s.name}</text>
+        <g class="legal-badge" transform="translate(${s.x}, ${s.y - 36})">
+          <rect x="-26" y="-13" width="52" height="24" rx="12" />
           <text y="4" text-anchor="middle">GO</text>
         </g>
       </g>`;
   }).join("");
 
-  const token = here
-    ? `<g class="player-token" data-player-token transform="translate(${here.x}, ${here.y})">
-         <circle class="player-halo" r="46" />
-         <circle class="player-pawn" r="18" />
-         <text class="player-you" y="5" text-anchor="middle">YOU</text>
-       </g>`
-    : "";
+  const tokens = (state.players || []).map((p, i) => {
+    const sp = getSpace(p.position || "start");
+    if (!sp) return "";
+    const isActive = i === state.activePlayer;
+    const color = p.isCpu ? "#1a4a63" : "#c45c4a";
+    const label = p.isCpu ? "CPU" : "YOU";
+    const offset = state.players.length > 1 ? (i === 0 ? -14 : 14) : 0;
+    return `
+      <g class="player-token ${isActive ? "token-active" : "token-idle"}" data-token="${p.id}"
+         transform="translate(${sp.x + offset}, ${sp.y + (i === 0 ? -8 : 8)})">
+        <circle class="player-halo" r="40" style="stroke:${color}" />
+        <circle class="player-pawn" r="17" style="fill:${color}" />
+        <text class="player-you" y="5" text-anchor="middle">${label}</text>
+      </g>`;
+  }).join("");
 
   return `
-    <svg class="board-svg" viewBox="${vb}" preserveAspectRatio="xMidYMid meet" aria-label="St. Croix valley board">
-      <image href="assets/map-st-croix.jpg" x="0" y="0" width="1200" height="780" opacity="0.28" preserveAspectRatio="xMidYMid slice" />
+    <svg class="board-svg" viewBox="0 0 1200 780" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <radialGradient id="goGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ffe08a" stop-opacity="0.95"/>
+          <stop offset="100%" stop-color="#d4a017" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <image href="assets/map-st-croix.jpg" x="0" y="0" width="1200" height="780" opacity="0.22" preserveAspectRatio="xMidYMid slice" />
       ${edges.join("")}
       ${nodes}
-      ${token}
+      ${tokens}
     </svg>
   `;
 }
@@ -217,32 +227,27 @@ function bindMoveNodes(root, handlers) {
   root.querySelectorAll("[data-move]").forEach((g) => {
     const id = g.getAttribute("data-move");
     g.onclick = () => handlers.move(id);
-    g.onkeydown = (e) => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handlers.move(id); }
-    };
   });
 }
 
 function encounterShellClass(enc) {
   if (!enc) return "";
-  if (enc.kind === "story-card" || enc.kind === "hazard-math" || enc.kind === "intro") return "sheet-card";
-  if (enc.kind === "minigame") return "sheet-card sheet-challenge";
+  if (enc.kind === "minigame") return "sheet-fullscreen";
+  if (enc.kind === "story-card") return "sheet-quiz";
   return "sheet-card";
 }
 
-/** Patch an existing board screen instead of remounting (avoids flashy reloads). */
 export function syncTrail(root, state, handlers) {
   if (!root?.classList?.contains("board-screen")) return false;
   const active = getActivePlayer(state);
-  const space = getSpace(state.position);
-  const need = stonesNeed(state);
+  const space = getSpace(playerPosition(state));
   const remaining = deckRemaining(state.usedQuizIds || []);
-  const legal = new Set(state.turnPhase === "pick" ? (state.legal || legalMoves(state)) : []);
+  const legal = new Set(legalMoves(state));
 
   const who = root.querySelector(".hud-who strong");
-  if (who) who.textContent = active?.name || "Traveler";
+  if (who) who.textContent = `${active?.name || "Traveler"}${active?.isCpu ? "" : ""}`;
   const sub = root.querySelector(".hud-sub");
-  if (sub) sub.textContent = `${space?.name || "…"} · ${state.turnPhase === "pick" ? "choose space" : state.turnPhase === "roll" ? "your roll" : "resolve"}`;
+  if (sub) sub.textContent = `${space?.name || "…"} · ${active?.isCpu ? "CPU turn" : state.turnPhase}`;
 
   const setMeter = (cls, value, max) => {
     const fill = root.querySelector(`.${cls} .meter-fill`);
@@ -253,77 +258,86 @@ export function syncTrail(root, state, handlers) {
   };
   setMeter("m-health", state.health, state.maxHealth);
   setMeter("m-energy", state.energy, state.maxEnergy);
-  setMeter("m-rations", state.rations, state.maxRations);
 
   const scores = root.querySelector(".hud-scores");
   if (scores) {
     scores.innerHTML = `
-      <span title="Story Stones">🪨 ${state.storyStones || 0}/${need}</span>
-      <span title="Score">⭐ ${state.score || 0}</span>
-      <span title="Story Cards left">📜 ${remaining}</span>`;
+      <span>⭐ ${state.score || 0}</span>
+      <span>📜 ${remaining}</span>
+      <span>${(state.players || []).map((p) => {
+        const pr = getSpace(p.position)?.progress ?? 0;
+        return `${p.isCpu ? "🤖" : "🧑"}${pr}`;
+      }).join(" · ")}</span>`;
   }
 
   const coach = root.querySelector(".board-coach");
   if (coach) coach.textContent = phaseHint(state);
 
   const dice = root.querySelector(".dice-face");
-  if (dice) dice.textContent = state.dice ? String(state.dice) : "—";
+  if (dice) {
+    const label = state.diceFace?.label || (state.dice != null ? state.dice : "—");
+    dice.textContent = label;
+    dice.classList.toggle("dice-challenge", state.diceFace?.type === "minigame");
+  }
   const rollBtn = root.querySelector('[data-a="roll"]');
-  if (rollBtn) rollBtn.disabled = !(state.turnPhase === "roll" && !state.encounter);
+  if (rollBtn) {
+    const can = state.turnPhase === "roll" && !state.encounter && !active?.isCpu;
+    rollBtn.disabled = !can;
+  }
 
   const sideTitle = root.querySelector(".side-space h3");
   const sideBlurb = root.querySelector(".side-space p");
-  const sideKind = root.querySelector(".side-space .hint strong");
   if (sideTitle) sideTitle.textContent = `${space?.icon || ""} ${space?.name || ""}`;
   if (sideBlurb) sideBlurb.textContent = space?.blurb || "";
-  if (sideKind) sideKind.textContent = space?.kind || "";
 
   const log = root.querySelector(".side-log");
-  if (log) log.innerHTML = (state.log || []).slice(-4).map((l) => `<div>${l}</div>`).join("");
+  if (log) log.innerHTML = (state.log || []).slice(-5).map((l) => `<div>${l}</div>`).join("");
 
-  // Board highlights + player token
   root.querySelectorAll(".board-node").forEach((g) => {
     const id = g.getAttribute("data-space");
     const isLegal = legal.has(id);
-    const isHere = id === state.position;
     g.classList.toggle("legal", isLegal);
-    g.classList.toggle("here", isHere);
+    g.classList.toggle("here", id === playerPosition(state));
     if (isLegal) g.setAttribute("data-move", id);
     else g.removeAttribute("data-move");
-    g.setAttribute("tabindex", isLegal ? "0" : "-1");
   });
   bindMoveNodes(root, handlers);
 
-  const token = root.querySelector("[data-player-token]");
-  if (token && space) token.setAttribute("transform", `translate(${space.x}, ${space.y})`);
+  (state.players || []).forEach((p, i) => {
+    const token = root.querySelector(`[data-token="${p.id}"]`);
+    const sp = getSpace(p.position || "start");
+    if (!token || !sp) return;
+    const offset = state.players.length > 1 ? (i === 0 ? -14 : 14) : 0;
+    token.setAttribute("transform", `translate(${sp.x + offset}, ${sp.y + (i === 0 ? -8 : 8)})`);
+    token.classList.toggle("token-active", i === state.activePlayer);
+  });
 
-  // Encounter overlay
   let overlay = root.querySelector(".encounter-overlay");
-  const encKey = state.encounter
-    ? `${state.encounter.kind}:${state.encounter.card?.id || state.encounter.game?.type || ""}:${state.encounter.answered || false}:${state.encounter.hintShown || false}:${state.encounter.game?.ticksLeft ?? ""}:${state.encounter.game?.caught ?? ""}`
+  const enc = state.encounter;
+  const encKey = enc
+    ? `${enc.kind}:${enc.card?.id || enc.game?.type || ""}:${enc.answered}:${enc.hintShown}:${enc.picked}:${enc.game?.caught}:${enc.game?.ticksLeft}:${enc.game?.done}`
     : "";
-  if (!state.encounter) {
+
+  if (!enc) {
     overlay?.remove();
     root.dataset.encKey = "";
   } else {
     if (!overlay) {
       overlay = document.createElement("div");
       overlay.className = "encounter-overlay";
-      overlay.innerHTML = `<div class="sheet sheet-board ${encounterShellClass(state.encounter)}"><div class="sheet-body" id="encounter"></div></div>`;
+      overlay.innerHTML = `<div class="sheet sheet-board ${encounterShellClass(enc)}"><div class="sheet-body" id="encounter"></div></div>`;
       root.appendChild(overlay);
       root.dataset.encKey = "";
     } else {
       const sheet = overlay.querySelector(".sheet");
-      if (sheet) sheet.className = `sheet sheet-board ${encounterShellClass(state.encounter)}`;
+      if (sheet) sheet.className = `sheet sheet-board ${encounterShellClass(enc)}`;
     }
-    // Soft rice ticks: only refresh mole grid
-    const softRice = state.encounter.kind === "minigame"
-      && state.encounter.game?.type === "rice"
-      && root.dataset.encKey?.startsWith("minigame:rice:")
-      && !state.encounter.game.done;
+
+    const softRice = enc.kind === "minigame" && enc.game?.type === "rice"
+      && root.dataset.encKey?.startsWith("minigame:rice:") && !enc.game.done;
     if (softRice) {
       const board = overlay.querySelector("[data-mg]");
-      if (board) renderMinigameBoard(board, state.encounter.game, handlers);
+      if (board) renderMinigameBoard(board, enc.game, handlers, enc);
       root.dataset.encKey = encKey;
     } else if (root.dataset.encKey !== encKey) {
       fillEncounter(overlay.querySelector("#encounter"), state, handlers);
@@ -333,18 +347,17 @@ export function syncTrail(root, state, handlers) {
   return true;
 }
 
-/** Update only the rice/memory board during ticks — no full trail sync flash. */
 export function syncMinigameOnly(root, state, handlers) {
   const board = root?.querySelector?.("[data-mg]");
-  const game = state.encounter?.game;
-  if (!board || !game) return false;
-  renderMinigameBoard(board, game, handlers);
-  if (game.done) {
+  const enc = state.encounter;
+  if (!board || !enc?.game) return false;
+  renderMinigameBoard(board, enc.game, handlers, enc);
+  if (enc.game.done) {
     const panel = root.querySelector("#encounter");
     if (panel && !panel.querySelector("[data-a=done]")) {
       const row = document.createElement("div");
-      row.className = "btn-row";
-      row.innerHTML = `<button class="btn btn-primary" data-a="done">Continue →</button>`;
+      row.className = "mg-done-row";
+      row.innerHTML = `<button class="btn btn-primary btn-big" data-a="done">Continue →</button>`;
       row.querySelector("[data-a=done]").onclick = handlers.minigameDone;
       panel.appendChild(row);
     }
@@ -352,20 +365,9 @@ export function syncMinigameOnly(root, state, handlers) {
   return true;
 }
 
-function meter(label, value, max, cls) {
-  const pct = Math.max(0, Math.min(100, Math.round((value / Math.max(1, max)) * 100)));
-  return `
-    <div class="meter ${cls}">
-      <span class="meter-label">${label}</span>
-      <div class="meter-track"><div class="meter-fill" style="width:${pct}%"></div></div>
-      <span class="meter-val">${value}</span>
-    </div>`;
-}
-
 export function renderTrail(state, handlers) {
   const active = getActivePlayer(state);
-  const space = getSpace(state.position);
-  const need = stonesNeed(state);
+  const space = getSpace(playerPosition(state));
   const remaining = deckRemaining(state.usedQuizIds || []);
 
   const node = el(`
@@ -375,21 +377,19 @@ export function renderTrail(state, handlers) {
           ${renderPortrait(active?.characterId || "makoons", { size: 44, className: "hud-portrait" })}
           <div>
             <strong>${active?.name || "Traveler"}</strong>
-            <span class="hud-sub">${space?.name || "…"} · your roll</span>
+            <span class="hud-sub">${space?.name || "…"}</span>
           </div>
         </div>
         <div class="hud-meters">
           ${meter("❤", state.health, state.maxHealth, "m-health")}
           ${meter("⚡", state.energy, state.maxEnergy, "m-energy")}
-          ${meter("🌾", state.rations, state.maxRations, "m-rations")}
         </div>
         <div class="hud-scores">
-          <span title="Story Stones">🪨 ${state.storyStones || 0}/${need}</span>
-          <span title="Score">⭐ ${state.score || 0}</span>
-          <span title="Story Cards left">📜 ${remaining}</span>
+          <span>⭐ ${state.score || 0}</span>
+          <span>📜 ${remaining}</span>
+          <span>${(state.players || []).map((p) => `${p.isCpu ? "🤖" : "🧑"}${getSpace(p.position)?.progress ?? 0}`).join(" · ")}</span>
         </div>
       </header>
-
       <div class="board-layout">
         <div class="board-stage">
           ${renderBoardSvg(state)}
@@ -397,26 +397,22 @@ export function renderTrail(state, handlers) {
         </div>
         <aside class="board-side">
           <div class="dice-panel">
-            <div class="dice-face" aria-live="polite">${state.dice ? state.dice : "—"}</div>
-            <button class="btn btn-primary btn-big" data-a="roll" ${state.turnPhase === "roll" && !state.encounter ? "" : "disabled"}>
-              🎲 Roll die
+            <div class="dice-face" aria-live="polite">${state.diceFace?.label || "—"}</div>
+            <button class="btn btn-primary btn-big" data-a="roll" ${state.turnPhase === "roll" && !state.encounter && !active?.isCpu ? "" : "disabled"}>
+              🎲 Roll
             </button>
-            <p class="hint dice-hint">${state.difficulty === "beginner" ? "Die: 1–4" : "Die: 1–6"} · move exactly that many hops</p>
+            <p class="hint dice-hint">Faces: 1 · 2 · 3 · 🎮 (~2 in 5)</p>
           </div>
           <div class="side-space">
             <h3>${space?.icon || ""} ${space?.name || ""}</h3>
             <p>${space?.blurb || ""}</p>
-            <p class="hint">Kind: <strong>${space?.kind || ""}</strong></p>
           </div>
-          <div class="side-log">
-            ${(state.log || []).slice(-4).map((l) => `<div>${l}</div>`).join("")}
-          </div>
+          <div class="side-log">${(state.log || []).slice(-5).map((l) => `<div>${l}</div>`).join("")}</div>
           <div class="btn-row side-actions">
             <button class="btn btn-ghost" data-a="exit">Save & Exit</button>
           </div>
         </aside>
       </div>
-
       ${state.encounter ? `<div class="encounter-overlay"><div class="sheet sheet-board ${encounterShellClass(state.encounter)}"><div class="sheet-body" id="encounter"></div></div></div>` : ""}
     </section>
   `);
@@ -424,11 +420,7 @@ export function renderTrail(state, handlers) {
   node.querySelector('[data-a="roll"]')?.addEventListener("click", handlers.roll);
   node.querySelector('[data-a="exit"]')?.addEventListener("click", handlers.exit);
   bindMoveNodes(node, handlers);
-
-  if (state.encounter) {
-    fillEncounter(node.querySelector("#encounter"), state, handlers);
-    node.dataset.encKey = `${state.encounter.kind}:${state.encounter.card?.id || ""}`;
-  }
+  if (state.encounter) fillEncounter(node.querySelector("#encounter"), state, handlers);
   return node;
 }
 
@@ -436,12 +428,13 @@ function fillEncounter(panel, state, handlers) {
   const enc = state.encounter;
   if (!enc || !panel) return;
   const active = getActivePlayer(state);
+  const cpuLock = !!active?.isCpu;
 
   if (enc.kind === "intro") {
     panel.innerHTML = `
       <h2>📜 ${enc.title}</h2>
-      <p>${enc.text}</p>
-      <div class="btn-row"><button class="btn btn-primary btn-big" data-a="go">Lift the Bundle — let's play</button></div>
+      <p class="intro-text">${enc.text}</p>
+      <div class="btn-row"><button class="btn btn-primary btn-big" data-a="go">Start the race</button></div>
     `;
     panel.querySelector("[data-a=go]").onclick = handlers.introGo;
     return;
@@ -450,78 +443,49 @@ function fillEncounter(panel, state, handlers) {
   if (enc.kind === "story-card") {
     const c = enc.card;
     panel.innerHTML = `
-      <div class="card-top">
-        <p class="card-topic">${c.topic || "Story Card"}</p>
-        <h2 class="card-title">${enc.title}</h2>
-        <p class="quiz-q">${c.q}</p>
-      </div>
-      <div class="quiz-options quiz-grid">
-        ${c.choices.map((t, i) => {
-          let cls = "btn quiz-option";
-          if (enc.answered) {
-            if (i === c.answer) cls += " correct";
-            else if (i === enc.picked) cls += " wrong";
-          }
-          return `<button class="${cls}" data-i="${i}" ${enc.answered ? "disabled" : ""}>${t}</button>`;
-        }).join("")}
-      </div>
-      <div class="card-foot">
-        ${!enc.answered && state.hintsLeft > 0 ? `<button class="btn btn-purple" data-a="hint">💡 Hint (${state.hintsLeft})</button>` : ""}
-        ${enc.hintShown && !enc.answered ? `<p class="hint">💡 ${c.hint}</p>` : ""}
-        ${enc.answered ? `<p class="learn-box compact-teach">${linkNativeWords(c.teach)}</p>
-          <button class="btn btn-primary btn-big" data-a="next">Continue →</button>` : ""}
+      <div class="quiz-layout">
+        <div class="quiz-split">
+          <div class="quiz-answers-pane">
+            <p class="pane-label">${cpuLock ? "CPU is choosing…" : enc.answered ? "Your answers" : "Choose an answer"}</p>
+            <div class="quiz-options quiz-stack">
+              ${c.choices.map((t, i) => {
+                let cls = "btn quiz-option";
+                if (enc.answered) {
+                  if (i === c.answer) cls += " correct";
+                  else if (i === enc.picked) cls += " wrong";
+                }
+                return `<button class="${cls}" data-i="${i}" ${enc.answered || cpuLock ? "disabled" : ""}><span class="opt-letter">${String.fromCharCode(65 + i)}</span><span class="opt-text">${t}</span></button>`;
+              }).join("")}
+            </div>
+            ${!enc.answered && !cpuLock && state.hintsLeft > 0 ? `<button class="btn btn-purple hint-btn" data-a="hint">💡 Hint (${state.hintsLeft})</button>` : ""}
+            ${enc.hintShown && !enc.answered ? `<p class="hint hint-inline">💡 ${c.hint}</p>` : ""}
+          </div>
+          <div class="quiz-question-pane">
+            <p class="card-topic">${c.topic || "Trail question"}</p>
+            <h2 class="card-title">${enc.title}</h2>
+            <p class="quiz-q">${c.q}</p>
+            ${enc.answered ? `<p class="learn-box compact-teach">${linkNativeWords(c.teach)}</p>` : ""}
+            <p class="quiz-space-tag">${enc.space?.icon || ""} ${enc.space?.name || ""}</p>
+          </div>
+        </div>
+        <div class="quiz-footer">
+          <button class="btn btn-primary btn-big" data-a="next"
+            ${!enc.answered || cpuLock ? "disabled" : ""}
+            ${!enc.answered ? 'aria-hidden="true"' : ""}>
+            ${cpuLock && enc.answered ? "CPU continuing…" : enc.answered ? "Continue →" : "Pick an answer"}
+          </button>
+        </div>
       </div>
     `;
-    if (!enc.answered) {
+    if (!enc.answered && !cpuLock) {
       panel.querySelectorAll("[data-i]").forEach((btn) => {
         btn.onclick = () => handlers.storyAnswer(Number(btn.dataset.i));
       });
       panel.querySelector("[data-a=hint]")?.addEventListener("click", handlers.storyHint);
-    } else {
-      panel.querySelector("[data-a=next]").onclick = handlers.storyNext;
+    } else if (enc.answered && !cpuLock) {
+      panel.querySelector("[data-a=next]")?.addEventListener("click", handlers.storyNext);
     }
     bindSayButtons(panel);
-    return;
-  }
-
-  if (enc.kind === "camp" || enc.kind === "event" || enc.kind === "council-gate") {
-    panel.innerHTML = `
-      <h2>${enc.title}</h2>
-      <p>${enc.text}</p>
-      <div class="btn-row"><button class="btn btn-primary" data-a="ok">Continue →</button></div>
-    `;
-    panel.querySelector("[data-a=ok]").onclick = handlers.ack;
-    return;
-  }
-
-  if (enc.kind === "hazard") {
-    const w = getWeapon(state.equippedWeapon);
-    panel.innerHTML = `
-      <h2>${enc.title}</h2>
-      <p>${enc.text}</p>
-      <div class="btn-row">
-        <button class="btn btn-primary" data-a="brave">Face it with math</button>
-        <button class="btn btn-blue" data-a="scare">Scare it off ${w ? `(${w.emoji})` : ""}</button>
-        <button class="btn btn-ghost" data-a="pay">Pay energy toll</button>
-      </div>
-    `;
-    panel.querySelector("[data-a=brave]").onclick = () => handlers.hazard("brave");
-    panel.querySelector("[data-a=scare]").onclick = () => handlers.hazard("scare");
-    panel.querySelector("[data-a=pay]").onclick = () => handlers.hazard("pay");
-    return;
-  }
-
-  if (enc.kind === "hazard-math") {
-    panel.innerHTML = `
-      <h2>${enc.title}</h2>
-      <p class="math-q">${enc.question}</p>
-      <div class="quiz-options">
-        ${enc.choices.map((c, i) => `<button class="btn quiz-option" data-i="${i}">${c}</button>`).join("")}
-      </div>
-    `;
-    panel.querySelectorAll("[data-i]").forEach((btn) => {
-      btn.onclick = () => handlers.hazardMath(Number(btn.dataset.i));
-    });
     return;
   }
 
@@ -530,29 +494,23 @@ function fillEncounter(panel, state, handlers) {
     const arcade = isArcadeType(game.type);
     const meta = arcade ? ARCADE_META[game.type] : null;
     panel.innerHTML = `
-      <h2 class="mg-title">${enc.title}</h2>
-      ${arcade ? `<p class="arcade-intro">${meta?.blurb || ""}</p>` : `<p class="hint">${enc.space?.blurb || ""}</p>`}
-      <div class="minigame-board ${arcade ? "arcade-board" : ""}" data-mg data-arcade="${arcade ? game.type : ""}"></div>
-      ${!arcade && game.done ? `<div class="btn-row"><button class="btn btn-primary" data-a="done">Continue →</button></div>` : ""}
+      <div class="mg-full">
+        <header class="mg-full-head">
+          <h2>${enc.title}</h2>
+          <p class="mg-controls">${enc.controls || meta?.controls || "Use arrow keys and mouse clicks"}</p>
+          <p class="mg-blurb">${enc.blurb || meta?.blurb || ""}</p>
+        </header>
+        <div class="minigame-board mg-full-board ${arcade ? "arcade-board" : ""}" data-mg data-arcade="${arcade ? game.type : ""}"></div>
+        ${!arcade && game.done ? `<div class="mg-done-row"><button class="btn btn-primary btn-big" data-a="done">Continue →</button></div>` : ""}
+      </div>
     `;
     const board = panel.querySelector("[data-mg]");
     if (!arcade) {
-      renderMinigameBoard(board, game, handlers);
+      renderMinigameBoard(board, game, handlers, enc);
       if (game.done) panel.querySelector("[data-a=done]").onclick = handlers.minigameDone;
     } else {
-      board.innerHTML = `<div class="arcade-placeholder">Click the game, then press <kbd>Enter</kbd> to start.</div>`;
+      board.innerHTML = `<div class="arcade-placeholder"><p>Click the game area</p><p><kbd>Enter</kbd> start · <kbd>←→↑↓</kbd> move · <kbd>Space</kbd> action</p></div>`;
     }
-    return;
-  }
-
-  if (enc.kind === "finale") {
-    panel.innerHTML = `
-      <h2>${enc.title}</h2>
-      <p>${enc.text}</p>
-      <p><strong>${active?.name}</strong>, which discovery will you share first?</p>
-      <div class="btn-row"><button class="btn btn-primary btn-big" data-a="fin">Open the Bundle</button></div>
-    `;
-    panel.querySelector("[data-a=fin]").onclick = handlers.finale;
     return;
   }
 
@@ -561,7 +519,7 @@ function fillEncounter(panel, state, handlers) {
       <div class="win-banner">
         <h2>🔥 ${enc.title}</h2>
         <p>${enc.text}</p>
-        <p>Score <strong>${state.score}</strong> · Stones <strong>${state.storyStones}</strong> · Cards correct ${state.questionsCorrect}/${state.questionsTotal}</p>
+        <p>Score <strong>${state.score}</strong> · Correct ${state.questionsCorrect}/${state.questionsTotal}</p>
         <div class="btn-row">
           <button class="btn btn-primary" data-a="again">Play again</button>
           <button class="btn btn-ghost" data-a="home">Home</button>
@@ -572,33 +530,21 @@ function fillEncounter(panel, state, handlers) {
     panel.querySelector("[data-a=home]").onclick = handlers.home;
     return;
   }
-
-  if (enc.kind === "defeat") {
-    panel.innerHTML = `
-      <h2>${enc.title}</h2>
-      <p>${enc.text}</p>
-      <div class="btn-row">
-        <button class="btn btn-primary" data-a="again">Try again</button>
-        <button class="btn btn-ghost" data-a="home">Home</button>
-      </div>
-    `;
-    panel.querySelector("[data-a=again]").onclick = handlers.again;
-    panel.querySelector("[data-a=home]").onclick = handlers.home;
-  }
 }
 
-function renderMinigameBoard(board, game, handlers) {
+function renderMinigameBoard(board, game, handlers, enc) {
   if (!board) return;
   if (game.type === "dig") {
     board.innerHTML = `
       <p class="mg-msg">${game.message}</p>
-      <div class="dig-grid">
+      <div class="dig-grid dig-grid-lg">
         ${game.cells.map((c) => `
-          <button ${c.revealed || game.done ? "disabled" : ""} data-dig="${c.i}">
+          <button class="dig-cell ${c.revealed ? "dug" : ""} ${c.artifact && c.revealed ? "found" : ""}"
+            ${c.revealed || game.done ? "disabled" : ""} data-dig="${c.i}">
             ${c.revealed ? (c.artifact ? c.artifact.emoji : "·") : "⬜"}
           </button>`).join("")}
       </div>
-      <p class="hint">Digs left: ${game.attemptsLeft}</p>
+      <p class="hint">Digs left: ${game.attemptsLeft} · Click squares</p>
     `;
     board.querySelectorAll("[data-dig]").forEach((btn) => {
       btn.onclick = () => handlers.mg({ type: "dig", i: Number(btn.dataset.dig) });
@@ -606,13 +552,14 @@ function renderMinigameBoard(board, game, handlers) {
   } else if (game.type === "memory") {
     board.innerHTML = `
       <p class="mg-msg">${game.message}</p>
-      <div class="memory-grid">
+      <div class="memory-grid memory-grid-lg">
         ${game.cards.map((c) => `
           <button class="memory-card ${c.flipped || c.matched ? "flipped" : ""} ${c.matched ? "matched" : ""}"
             data-mem="${c.id}" ${c.matched || game.done ? "disabled" : ""}>
-            ${c.flipped || c.matched ? c.symbol : "?"}
+            ${c.flipped || c.matched ? c.symbol : "❔"}
           </button>`).join("")}
       </div>
+      <p class="hint">Click two cards to match</p>
     `;
     board.querySelectorAll("[data-mem]").forEach((btn) => {
       btn.onclick = () => handlers.mg({ type: "memory-flip", id: btn.dataset.mem });
@@ -623,12 +570,13 @@ function renderMinigameBoard(board, game, handlers) {
         <span>🌾 ${game.caught}/${game.goal}</span>
         <span class="rice-timer">${game.ticksLeft}s</span>
       </div>
-      <div class="rice-mole-grid">
+      <div class="rice-mole-grid rice-mole-lg">
         ${game.pods.map((p) => `
           <button class="rice-mole ${p.phase}" data-pod="${p.id}" ${p.phase === "empty" || game.done ? "disabled" : ""}>
-            ${p.phase === "ripe" ? "🌾" : p.phase === "green" ? "🌱" : ""}
+            ${p.phase === "ripe" ? "🌾" : p.phase === "green" ? "🌱" : "·"}
           </button>`).join("")}
       </div>
+      <p class="hint">Click golden 🌾 only — leave 🌱 to grow</p>
     `;
     board.querySelectorAll("[data-pod]").forEach((btn) => {
       btn.onclick = () => handlers.mg({ type: "rice-catch", id: btn.dataset.pod });
@@ -641,7 +589,7 @@ export function renderGameOver(state, handlers) {
     <section class="screen setup-screen">
       <div class="paper-card">
         <h2>Trail ended</h2>
-        <p>Score ${state.score}. Stones ${state.storyStones}.</p>
+        <p>Score ${state.score}.</p>
         <div class="btn-row">
           <button class="btn btn-primary" data-a="again">Play again</button>
           <button class="btn btn-ghost" data-a="home">Home</button>

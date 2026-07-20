@@ -164,7 +164,7 @@ export const TRAIL_STOPS = [
   {
     id: "water-roads", name: "The Water Roads", biome: "lake", type: "quiz", icon: "🛶",
     art: "assets/stop-water-roads.jpg", x: 500, y: 930, links: ["glacial-lakes", "maple-sugaring"],
-    story: "Your journey begins on the Upper St. Croix lakes. Long before highways, people traveled by canoe on the rivers and lakes of this valley. These water roads linked families, trade, and stories.",
+    story: "The race opens on the Upper St. Croix lakes. Long before highways, people traveled by canoe on the rivers and lakes of this valley. These water roads linked families, trade, and stories.",
     beat: "The water is calm and mirror-bright; the whole valley seems to welcome you.",
     learn: "The St. Croix valley is the homeland of Dakota and Ojibwe (Anishinaabe) peoples. Birchbark canoes were light, strong, and perfect for these waters.",
     question: "What did people often use to travel the St. Croix's lakes and rivers long ago?",

@@ -2,7 +2,7 @@
  * Oregon Trail–style arcade minigames.
  * Controls: Arrow keys move · Space action · Enter start/skip-end
  */
-import { getWeapon } from "./data.js";
+import { getWeapon } from "./data.js?v=race8";
 
 const KEY = {
   left: "ArrowLeft",
@@ -18,31 +18,31 @@ export const ARCADE_META = {
     id: "hunt",
     title: "Forest Hunt",
     blurb: "Animals cross the clearing. Aim carefully — take only what your party needs!",
-    controls: "← → move · Space throw spear · Enter start",
+    controls: "← → or click to aim · Space / click throw · Enter start",
   },
   portage: {
     id: "portage",
     title: "Portage Carry",
     blurb: "Carry the canoe between lakes. Dodge rocks and mud puddles!",
-    controls: "↑ ↓ ← → walk · Space rest (recover) · Enter start",
+    controls: "Arrow keys or click a direction · Space rest · Enter start",
   },
   forage: {
     id: "forage",
     title: "Resource Forage",
     blurb: "Explore the woods for berries, sap, and fish. Watch for buzzing pests!",
-    controls: "↑ ↓ ← → explore · Space gather · Enter start",
+    controls: "Arrow keys or click to move · Space / click gather · Enter start",
   },
   trap: {
     id: "trap",
     title: "Trapline",
     blurb: "Set snares on animal paths, then check them. Don’t spook the critters!",
-    controls: "← → choose spot · Space set/check snare · Enter start",
+    controls: "← → or click spot · Space / click set · Enter start",
   },
   rapids: {
     id: "rapids",
     title: "River Rapids",
     blurb: "Steer your canoe through rocky water. Stay in the safe channel!",
-    controls: "← → steer · Space paddle boost · Enter start",
+    controls: "← → or click to steer · Space boost · Enter start",
   },
 };
 
@@ -117,6 +117,44 @@ export function mountArcade(container, gameId, { difficulty = "beginner", puzzle
 
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
+
+  const onPointer = (e) => {
+    if (!alive) return;
+    e.preventDefault();
+    canvas.focus();
+    const rect = canvas.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * canvas.width;
+    const y = ((e.clientY - rect.top) / rect.height) * canvas.height;
+    if (!game.started) {
+      game.started = true;
+      game.message = "";
+      return;
+    }
+    if (game.done) {
+      finish();
+      return;
+    }
+    // Steer toward click, then fire action
+    if (typeof game.pointer === "function") {
+      game.pointer(x, y);
+    } else {
+      if (game.hunterX != null) game.hunterX = Math.max(40, Math.min(canvas.width - 40, x));
+      if (game.canoeX != null) game.canoeX = Math.max(30, Math.min(canvas.width - 30, x));
+      if (game.cursor != null && Array.isArray(game.snares)) {
+        game.cursor = Math.max(0, Math.min(game.snares.length - 1, Math.floor((x / canvas.width) * game.snares.length)));
+      }
+      // Grid games (portage / forage)
+      if (game.cols && game.x != null && game.y != null) {
+        const tw = canvas.width / game.cols;
+        const th = (canvas.height - 40) / (game.rows || game.cols);
+        game.x = Math.max(0, Math.min(game.cols - 1, Math.floor(x / tw)));
+        game.y = Math.max(0, Math.min((game.rows || game.cols) - 1, Math.floor(Math.max(0, y - 20) / th)));
+      }
+      if (typeof game.action === "function") game.action();
+    }
+  };
+  canvas.addEventListener("pointerdown", onPointer);
+
   canvas.focus();
 
   function finish() {
@@ -125,6 +163,7 @@ export function mountArcade(container, gameId, { difficulty = "beginner", puzzle
     cancelAnimationFrame(raf);
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
+    canvas.removeEventListener("pointerdown", onPointer);
     onComplete(game.result());
   }
 
@@ -157,6 +196,7 @@ export function mountArcade(container, gameId, { difficulty = "beginner", puzzle
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      canvas.removeEventListener("pointerdown", onPointer);
     },
   };
 }
@@ -362,6 +402,8 @@ function createPortage(w, h, scale, opts = {}) {
     started: false,
     done: false,
     message: "Press Enter — carry the canoe to the far lake!",
+    cols,
+    rows,
     x: 0,
     y: Math.floor(rows / 2),
     stamina: 100,
@@ -497,6 +539,8 @@ function createForage(w, h, scale, opts = {}) {
     started: false,
     done: false,
     message: "Press Enter — gather food for the trail!",
+    cols,
+    rows,
     x: 0,
     y: 0,
     bag: 0,
