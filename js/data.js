@@ -340,12 +340,22 @@ export function undirectedNeighbors(stopId) {
   return [...new Set([...out, ...inbound])];
 }
 
+/** How many hops predators chase per turn (beginner is gentler). */
+export function predatorChaseRange(difficultyId) {
+  return difficultyId === "beginner" ? 1 : 2;
+}
+
 /** Place mobile predators ahead on the valley map (kid chase tokens). */
 export function spawnPredators(difficultyId) {
   const hard = difficultyId === "hard";
   const medium = difficultyId === "medium";
   const count = hard ? 2 : medium ? 2 : 1;
-  const dens = shuffle(["glacial-lakes", "pictographs", "pipestone", "dig-site", "portage-carry"]);
+  // Beginner dens stay mid/late so the first paddles aren't an ambush.
+  const dens = hard
+    ? shuffle(["glacial-lakes", "maple-sugaring", "manoomin", "portage-carry", "pictographs"])
+    : medium
+      ? shuffle(["portage-carry", "pictographs", "hunt-forage", "pipestone", "bdote"])
+      : shuffle(["pipestone", "bdote", "fur-trade", "dig-site", "headwaters"]);
   const kinds = [
     { emoji: "🐺", name: "Hungry Wolf" },
     { emoji: "🐻", name: "Curious Bear" },

@@ -1,22 +1,15 @@
 import {
   DIFFICULTIES,
-  WHIMSICAL_STARTS,
-  FOODS,
-  MEDICINE,
   getItem,
   getWeapon,
   getAilment,
   pickRandom,
-  TRAIL_STOPS,
-  assignFoeNodes,
-  spawnPredators,
-  spawnMigrators,
 } from "./data.js";
-import { CLOTHING, getClothing } from "./characters.js";
-import { makeCompanionState, pickCompanion } from "./companions.js";
+import { CLOTHING, getClothing, CHARACTERS } from "./characters.js";
 import { getAnimal } from "./animals.js";
+import { BOARD } from "./board.js";
 
-const SAVE_KEY = "minnesota-portage-v5";
+const SAVE_KEY = "minnesota-portage-v6";
 
 export function createEmptySetup() {
   return {
@@ -24,17 +17,16 @@ export function createEmptySetup() {
     difficulty: "medium",
     players: [],
     draftingIndex: 0,
-    companionOn: true,
-    companionId: null,
   };
 }
 
+/** Draft uses the character's real name — no free-typing. */
 export function createPlayerDraft(index) {
+  const char = CHARACTERS[index % CHARACTERS.length];
   return {
     id: `p${index + 1}`,
-    name: "",
-    personality: "",
-    characterId: "makoons",
+    name: char.name,
+    characterId: char.id,
     powerId: "time-echo",
     clothingId: "none",
   };
@@ -42,17 +34,19 @@ export function createPlayerDraft(index) {
 
 export function startRun(setup) {
   const diff = DIFFICULTIES[setup.difficulty] || DIFFICULTIES.medium;
-  const start = pickRandom(WHIMSICAL_STARTS);
-  const usedChars = setup.players.map((p) => p.characterId);
-  const companion =
-    setup.companionOn
-      ? makeCompanionState(setup.companionId || pickCompanion(usedChars).id)
-      : null;
+  const players = setup.players.map((p) => {
+    const ch = CHARACTERS.find((c) => c.id === p.characterId);
+    return {
+      ...p,
+      name: ch?.name || p.name || "Traveler",
+    };
+  });
 
   return {
-    phase: "trail",
+    phase: "board",
+    mode: "boardgame",
     setup,
-    players: setup.players.map((p) => ({ ...p })),
+    players,
     difficulty: setup.difficulty,
     health: diff.health,
     energy: diff.energy,
@@ -70,34 +64,31 @@ export function startRun(setup) {
     clothingOwned: ["none", "voyager-hat"],
     ailments: [],
     animalFriends: [],
-    companion,
+    companion: null,
     storyStones: 0,
     questTitle: "The St. Croix Great Portage",
-    stopIndex: -1, // -1 = whimsical start / quest briefing
-    start,
-    stops: TRAIL_STOPS,
-    visited: [], // stop ids the party has completed
-    skipped: [], // stop ids paddled past (2-hop shortcut)
-    foeNodes: assignFoeNodes(setup.difficulty, setup.players.length), // legacy branch foe tokens
-    predators: spawnPredators(setup.difficulty), // mobile chase tokens
-    migrators: spawnMigrators(), // herds to follow for food
-    paddleRange: 2, // player & predators move up to this many hops per turn
+    board: BOARD,
+    position: "start",
+    dice: null,
+    turnPhase: "roll",
+    legal: [],
+    usedQuizIds: [],
     activePlayer: 0,
     score: 0,
     learned: [],
     artifacts: [],
-    hintsLeft: setup.players.filter((p) => p.powerId === "time-echo").length,
-    strongArms: setup.players.some((p) => p.powerId === "strong-arms"),
-    speedyFeet: setup.players.some((p) => p.powerId === "speedy-feet"),
-    animalFriendPower: setup.players.some((p) => p.powerId === "animal-friend"),
-    puzzleMaster: setup.players.some((p) => p.powerId === "puzzle-master"),
-    warmHeart: setup.players.some((p) => p.powerId === "warm-heart"),
+    hintsLeft: players.filter((p) => p.powerId === "time-echo").length,
+    strongArms: players.some((p) => p.powerId === "strong-arms"),
+    speedyFeet: players.some((p) => p.powerId === "speedy-feet"),
+    animalFriendPower: players.some((p) => p.powerId === "animal-friend"),
+    puzzleMaster: players.some((p) => p.powerId === "puzzle-master"),
+    warmHeart: players.some((p) => p.powerId === "warm-heart"),
     encountersDone: 0,
     enemiesFaced: 0,
     questionsCorrect: 0,
     questionsTotal: 0,
     restsUsed: 0,
-    log: [`Arrived at ${start.name}!`],
+    log: ["The board is ready. Roll the die to travel the valley."],
     encounter: null,
     gameOver: false,
     won: false,
@@ -108,8 +99,6 @@ export function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
-/* ─────────────── Items ─────────────── */
-
 export function addItem(state, id) {
   const item = getItem(id);
   if (!item) return state;
@@ -117,36 +106,29 @@ export function addItem(state, id) {
 }
 export const addFood = addItem;
 
-export function unlockClothing(state, clothingId) {
-  if (state.clothingOwned.includes(clothingId)) return state;
-  const cloth = getClothing(clothingId);
+export function removeInventoryAt(state, index) {
+  const inventory = state.inventory.filter((_, i) => i !== index);
+  return { ...state, inventory };
+}
+
+export function unlockClothing(state, id) {
+  if (!id || (state.clothingOwned || []).includes(id)) return state;
   return {
     ...state,
-    clothingOwned: [...state.clothingOwned, clothingId],
-    log: [...state.log, `Unlocked outfit: ${cloth?.emoji || ""} ${cloth?.name || clothingId}`],
+    clothingOwned: [...(state.clothingOwned || []), id],
+    log: [...state.log, `Found clothing: ${getClothing(id)?.emoji || ""} ${getClothing(id)?.name || id}`],
   };
 }
 
 export function equipClothing(state, playerId, clothingId) {
-  if (!state.clothingOwned.includes(clothingId)) return state;
-  let next = {
-    ...state,
-    players: state.players.map((p) =>
-      p.id === playerId ? { ...p, clothingId } : p
-    ),
-  };
-  // Warm outfits chase away the Chills.
-  const cloth = getClothing(clothingId);
-  if (cloth?.warm && next.ailments.some((a) => a.id === "the-chills")) {
-    next = cureAilment(next, "the-chills", `${cloth.emoji} warmed you up — the Chills are gone!`);
-  }
-  return next;
+  const players = state.players.map((p) =>
+    p.id === playerId ? { ...p, clothingId } : p
+  );
+  return { ...state, players };
 }
 
-/* ─────────────── Weapons ─────────────── */
-
 export function addWeapon(state, id) {
-  if (!id || state.weaponsOwned.includes(id)) return state;
+  if (!id || (state.weaponsOwned || []).includes(id)) return state;
   const w = getWeapon(id);
   return {
     ...state,
@@ -160,8 +142,6 @@ export function equipWeapon(state, id) {
   if (!state.weaponsOwned.includes(id)) return state;
   return { ...state, equippedWeapon: id };
 }
-
-/* ─────────────── Sickness ─────────────── */
 
 export function applyAilment(state, id, reason) {
   const a = getAilment(id);
@@ -187,8 +167,6 @@ export function cureAilment(state, id, reason) {
   };
 }
 
-/* ─────────────── Animal friends ─────────────── */
-
 export function addAnimalFriend(state, id) {
   if (!id || (state.animalFriends || []).includes(id)) return state;
   const a = getAnimal(id);
@@ -199,20 +177,6 @@ export function addAnimalFriend(state, id) {
   };
   if (a?.bonus === "hint") next = { ...next, hintsLeft: next.hintsLeft + 1 };
   return next;
-}
-
-/* ─────────────── Travel / damage ─────────────── */
-
-export function travelCost(state) {
-  const diff = DIFFICULTIES[state.difficulty];
-  let cost = diff.energyTravel;
-  if (state.speedyFeet) cost = Math.max(3, Math.floor(cost * 0.65));
-  if ((state.animalFriends || []).some((id) => getAnimal(id)?.bonus === "energy-save")) {
-    cost = Math.max(2, cost - 2);
-  }
-  if (state.energy < 30) cost += 3;
-  else if (state.energy > 70) cost = Math.max(2, cost - 2);
-  return cost;
 }
 
 export function applyDamage(state, healthLoss = 0, energyLoss = 0, reason = "") {
@@ -242,8 +206,6 @@ export function nextPlayer(state) {
   return { ...state, activePlayer };
 }
 
-/* ─────────────── Save / load ─────────────── */
-
 export function saveRun(state) {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));
@@ -253,7 +215,13 @@ export function saveRun(state) {
 export function loadRun() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const state = JSON.parse(raw);
+    if (!state || state.mode !== "boardgame") return null;
+    if (!state.position) state.position = "start";
+    if (!state.usedQuizIds) state.usedQuizIds = [];
+    if (!state.turnPhase) state.turnPhase = "roll";
+    return state;
   } catch (_) {
     return null;
   }
@@ -262,9 +230,13 @@ export function loadRun() {
 export function clearSave() {
   try {
     localStorage.removeItem(SAVE_KEY);
+    // Also clear legacy key so Continue doesn't revive the old map mode.
+    localStorage.removeItem("minnesota-portage-v5");
   } catch (_) {}
 }
 
 export function getActivePlayer(state) {
   return state.players[state.activePlayer] || state.players[0];
 }
+
+export { pickRandom, CLOTHING };

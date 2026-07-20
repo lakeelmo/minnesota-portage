@@ -620,10 +620,7 @@ export function mapTravel(state, targetIndex) {
     log: [...next.log, hops > 1 ? `Long paddle (${hops} hops)!` : `Paddled to ${next.stops[targetIndex].name}.`],
   };
 
-  // Wildlife turn: herds drift, predators chase (same range as the player).
-  next = moveMigrators(next, 1);
-  next = movePredators(next, range);
-
+  // Meet herds already on this stop, then wildlife drifts / predators chase.
   const herds = migratorOnPlayer(next);
   for (const herd of herds) {
     next = addItem(next, herd.gift || "hazelnuts");
@@ -631,6 +628,10 @@ export function mapTravel(state, targetIndex) {
     next = { ...next, log: [...next.log, `${herd.emoji} You met the ${herd.name} — trail snacks!`] };
     next = maybeUnlockAnimal(next, 0.45);
   }
+
+  const predSteps = state.predatorRange ?? (state.difficulty === "beginner" ? 1 : range);
+  next = moveMigrators(next, 1);
+  next = movePredators(next, predSteps);
 
   const pred = predatorOnPlayer(next);
   if (pred) {

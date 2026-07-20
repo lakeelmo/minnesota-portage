@@ -1,10 +1,5 @@
 /**
- * Minnesota Portage — the quest.
- *
- * Your mission: carry a birchbark Story Bundle along the water roads,
- * gather Story Stones of living knowledge at each stop, and bring them
- * to the Council of Stories. A portage is when you carry a canoe over land
- * between waters — and here, you also carry stories.
+ * Minnesota Portage — the quest (board-game edition).
  */
 
 export const QUEST = {
@@ -15,18 +10,13 @@ export const QUEST = {
   stoneEmoji: "🪨",
   goalStops: "Council of Stories",
   short:
-    "Paddle up to two hops at a time along the St. Croix. Follow migrating animals, dodge predators, and gather Story Stones of living Dakota and Ojibwe knowledge.",
-  briefing: (playerName, companionName) =>
-    `${playerName}, the Council of Stories has trusted your crew with a birchbark Story Bundle.
-Each turn you can paddle up to <strong>2 hops</strong> — predators move 2 hops too, so plan your route!
-Follow 🦌 herds for snacks. Dodge 🐺 on the map. A long paddle can skip a stop to escape trouble.
-At each stop, listen, learn, and earn a Story Stone. Reach the Council with your Bundle full.
-${companionName ? `${companionName} will paddle beside you.` : "You travel for the next listeners."}`,
+    "A turn-based board game of the St. Croix valley: roll the die, choose your path, draw Story Cards, and finish challenges to fill your Bundle.",
+  briefing: (playerName) =>
+    `${playerName}, the Council of Stories has trusted you with a birchbark Story Bundle.
+<br><br>
+<strong>Each turn:</strong> roll the die, then move exactly that many spaces along the board.
+Branches mean strategy — pick the path that fits your stones and stamina.
+<br><br>
+<strong>Spaces:</strong> Story Cards (trivia, never the same card twice), Challenges (minigames), Camps, and Hazards.
+Earn Story Stones, then reach the <strong>Council of Stories</strong> with a full Bundle.`,
 };
-
-export function questProgress(state) {
-  const total = (state.stops || []).filter((s) => s.type !== "finale").length;
-  const stones = state.storyStones || 0;
-  const cur = Math.max(0, state.stopIndex);
-  return { stones, total, cur, pct: total ? Math.round((stones / total) * 100) : 0 };
-}
