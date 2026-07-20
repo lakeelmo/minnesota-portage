@@ -1,64 +1,60 @@
-# Handoff — Minnesota Portage (map-game + art restyle)
+# Handoff — Minnesota Portage
 
-**Date:** 2026-07-19  
+**Date:** 2026-07-20  
 **Repo path:** `/Users/admin/Minnesota Trail`  
-**Live (older published build):** https://lakeelmo.github.io/minnesota-portage/  
-**GitHub:** https://github.com/lakeelmo/minnesota-portage  
+**Live:** https://lakeelmo.github.io/minnesota-portage/  
+**GitHub:** https://github.com/lakeelmo/minnesota-portage (`lakeelmo`)  
 **Local play:** `python3 -m http.server 8080` → http://localhost:8080  
-**Branch:** `main` (tracks `origin/main`). **Many uncommitted local changes** — do not assume Pages has the map-game rev yet.
+**Branch:** `main` @ `fbe21ce` (pushed to `origin/main`)  
+**Save key:** `minnesota-portage-v5` — clear `localStorage` if an old save fights you.
+
+---
+
+## Product
+
+Educational kid game (ages ~9–11) about Minnesota Indigenous / pre-settler history along the **St. Croix valley**. Vanilla ES-module SPA, no build step, GitHub Pages–ready. Brand: **Minnesota Portage** (was Minnesota Trail Fun Fun).
+
+Quest framing: carry a birchbark **Story Bundle**, gather **Story Stones**, reach the **Council of Stories**. A portage = canoe over land *and* carrying living knowledge.
 
 ---
 
 ## User intent (north star)
 
-1. **Interactive map game** — click your path, avoid enemies, feel like a real game (not a scrolling document).
-2. **Single window, phone/tablet** — **no page scrolling**; everything fits in one viewport.
-3. **Art style:** classic American river-adventure **pen-and-ink book plates** (Huckleberry Finn–era illustration *aesthetic*), with **light watercolor wash** on cream paper.  
-   - **Do NOT** copy racist caricature from historical Huck Finn plates. Respectful, accurate Indigenous depiction only.
-4. **Each stop/challenge** has its own illustration; culturally careful pre-settlement Minnesota (esp. **St. Croix valley** Dakota & Ojibwe).
-5. **Playable characters** grounded in St. Croix valley peoples/places (user asked for “actual people”; current design uses **fictional youth rooted in real places/nations**, not sacred figures — see Characters).
-6. Educational, interactive, ages ~9–11.
+1. Interactive **map as the game** — choose routes, strategy, not a scrolling document.
+2. **Single phone/tablet window, no page scrolling** (`100dvh`, `overflow:hidden` on `html/body/#app`).
+3. Art: classic American river-adventure **ink + light watercolor** book plates. Interpret technique only — **never** racist caricature.
+4. Per-stop illustrations; sensitive depictions of pre-settlement Dakota/Ojibwe life.
+5. Playable characters rooted in St. Croix valley peoples (currently **fictional youth** tied to real places/nations — user once asked for “actual people”; clarify before inventing named historical figures).
+6. Fun and engaging for kids: quizzes must not always be answer A; map should involve following migratory animals and dodging predators; minigames must fit the frame without scrolling.
 
 ---
 
-## What is already done (local, uncommitted)
+## What’s done (published)
 
-### Gameplay / UI
-**Status:** Map shell marked **FINISHED** by [Finish no-scroll map shell](e6283f7c-1b11-4ef2-b97b-8dfa27f682db) (2026-07-19). Still smoke-test on a real phone viewport before calling the loop done.
+### Shell + map
+- Fixed device frame; trail is map-first with HUD + SVG graph + dock (Bag / Rest / Exit).
+- Encounters = bottom sheets; bag = modal.
+- **2-hop paddle range** (`paddleRange: 2`): glowing destinations include nodes 1–2 hops ahead.
+- A **2-hop path skips** the intermediate stop (strategic dodge tradeoff).
+- **Mobile predators** (`state.predators`) move up to 2 hops toward the player after each paddle; landing on one → foe fight.
+- **Migratory herds** (`state.migrators` — deer 🦌, geese 🪿) drift routes; landing on one → food + score + chance of animal friend.
+- Legacy static `foeNodes` on branch pairs still exist alongside mobile predators.
+- Coach toast: `Up to 2 hops · follow 🦌 · dodge 🐺`
 
-- Fixed **device shell**: `#app` max-width ~480–520px, `100dvh`, `html/body` `overflow: hidden` (`css/main.css`).
-- **Map-first trail screen** (`js/ui.js` `renderTrail`):
-  - Compact HUD
-  - Full `map-stage` with SVG nodes/edges
-  - Dock: Bag / Rest / Exit
-  - Encounters as **bottom-sheet overlay** (not a long scroll stack)
-  - Bag as modal
-- **Click-to-travel graph** (`js/game.js`):
-  - `canTravelTo`, `mapTravel`, `reachableStops`
-  - Stops have `x`, `y`, `links[]` (forward-only)
-  - `BRANCH_PAIRS` + `foeNodes` so player can pick a branch to avoid a foe token
-- Save key: `minnesota-portage-v4` (`js/state.js`)
-- Quest copy: St. Croix Great Portage (`js/quest.js`)
-- Pronunciation audio chips still exist (`js/audio.js`)
+### Quizzes
+- Choices are **shuffled** at encounter time via `shuffleChoices()` in `js/data.js` (stop quizzes + campfire trivia + math already shuffled). Correct answer is **not** always index 0.
+- Encounter stores `choices` + `answer`; companion “cross out 2” uses those.
 
-### Content
-- Stops rewritten around **St. Croix valley** water roads (`js/data.js` `TRAIL_STOPS`) with `art:` paths.
-- Characters rewritten to 8 St. Croix valley youth (`js/characters.js`).
+### Minigames
+- **Manoomin rice** = whack-a-mole (`createRiceGame` / `tickRiceGame` / `catchRicePod` in `js/minigames.js`): golden 🌾 flash then fade; tap ripe, leave 🌱; timed; interval driven from `js/main.js`.
+- Dig / memory / Oregon Trail–style arcade (`js/arcade.js`) still present.
+- Sheets tightened for no-scroll: compact story clamp, smaller stop art / dig / memory / rice grids, arcade `max-height ~32vh`. Minigames omit large stop art + long learn box in the sheet body.
 
-### Art assets (local `assets/`)
-Ink/watercolor-ish plates generated and aliased to data IDs:
+### Art
+- JPEG plates in git (~14MB total): `map-st-croix.jpg`, `char-*.jpg` (8 IDs), `stop-*.jpg` matching `data.js`.
+- Local untracked leftover PNGs (experimental names / duplicates) — safe to delete; not required for the game.
 
-| Role | Files |
-|------|--------|
-| Map BG | `map-st-croix.jpg` (also `trail-map-bg.jpg`) |
-| Stops | `stop-*.jpg` matching `js/data.js` `art:` paths |
-| Chars | `char-{id}.jpg` for the 8 playable IDs |
-
-**Art consistency problem:** some portraits are true ink+wash; others are leftover modern/AI styles. User wants **one consistent ink + watercolor style** across all characters and stops.
-
----
-
-## Characters (current IDs — keep unless extended carefully)
+### Characters (8)
 
 | id | Name | Nation | Home |
 |----|------|--------|------|
@@ -71,45 +67,55 @@ Ink/watercolor-ish plates generated and aliased to data IDs:
 | tasina | Tašína | Dakota | St. Croix prairie edge |
 | rivercloud | River Cloud | Dakota | St. Croix river bluffs |
 
-**Note for next agent:** User asked for “actual people.” Current set is **fictional kids with real cultural/place grounding**. If replacing with named historical figures, research carefully (St. Croix Dakota/Ojibwe), avoid sacred persons, keep age-appropriate, and keep living-culture framing. Prefer consulting NPS St. Croix / tribal education sources.
-
 ---
 
 ## Key files
 
-| File | Role |
+| Path | Role |
 |------|------|
-| `js/ui.js` | Title, setup, **map UI**, overlays, bag |
-| `js/game.js` | Encounters, **mapTravel**, foes on nodes |
-| `js/data.js` | Stops graph, branch pairs, items |
-| `js/characters.js` | Playable cast + doodle fallback SVG |
-| `js/main.js` | Screens, `mapTravel` / bag handlers |
-| `js/state.js` | Run model, `minnesota-portage-v4` |
-| `js/quest.js` | Quest copy |
-| `css/main.css` | Device shell + trail/map/overlay styles (**may have some duplicate blocks** — clean if needed) |
-| `assets/*` | Map, stop, character art |
+| `js/main.js` | Screens, `mapTravel`, bag, rice tick interval, arcade mount |
+| `js/ui.js` | Title, map SVG (predators/herds), trail shell, encounter sheets |
+| `js/game.js` | Encounters, `pathToStop` / `mapTravel`, predator & migrator turns, quiz shuffle wiring |
+| `js/data.js` | Stops graph, `shuffleChoices`, `spawnPredators`, `spawnMigrators`, items |
+| `js/minigames.js` | Dig, memory, **rice mole** |
+| `js/arcade.js` | Hunt / portage / forage / trap / rapids canvases |
+| `js/characters.js` | Cast + portraits (`assets/char-{id}.jpg`) |
+| `js/state.js` | Run model, save `minnesota-portage-v5` |
+| `js/quest.js` | Quest copy (mentions 2-hop + wildlife) |
+| `js/audio.js` | Pronunciation (Web Speech) |
+| `css/main.css` | Device shell + map + sheet + mole styles |
+| `assets/` | Map, stop, character JPEGs |
 
 ---
 
-## Known gaps / next work (priority order)
+## How play should feel
 
-1. ~~Unify all art~~ — 8 playable portraits now ink+watercolor (ziigwan/wiyaka/tasina/rivercloud regenerated 2026-07-19).
-2. ~~Polish map readability~~ — stronger edges/nodes/glow; duplicate CSS shell removed.
-3. ~~Smoke-test loop~~ — verified Begin → setup → traveler → intro → quiz → map travel → branch (foe markers visible) → stop art in sheets. `overflow:hidden`, no page scroll.
-4. **Optional cleanup:** delete unused local legacy `assets/char-*.png` / duplicate stop PNGs (not in git).
-5. Optional: if user wants named historical figures instead of fictional valley youth, research carefully.
-
-**Published:** `main` @ `9a3f3cb` — https://lakeelmo.github.io/minnesota-portage/
+1. Begin → crew/difficulty → pick traveler → intro sheet → Lift the Bundle.
+2. Quiz at Water Roads (shuffled answers) → Story Stone → map.
+3. Tap a glowing stop (1 or 2 hops). Predators then move 2; herds drift.
+4. Follow herds for snacks; get caught by a predator → foe math/scare/toll.
+5. At Manoomin: tap flashing ripe rice before it fades.
+6. Branch routes still matter; reach Council of Stories.
 
 ---
 
-## How the map game is supposed to work
+## Known gaps / good next work
 
-1. After intro (“Lift the Bundle”), player sees St. Croix map.
-2. **Glowing** nodes = adjacent `links` from current stop (`reachableStops`).
-3. Tap a glowing node → `mapTravel` → energy/hunger → arrive → encounter sheet.
-4. Some branch nodes carry **foe** tokens (`foeNodes`); picking the other branch avoids them.
-5. Bag/Rest/Exit in bottom dock when no encounter is open.
+1. **Sheet internal scroll** — page scroll is off, but some encounter sheets (esp. arcade + long quizzes) may still scroll *inside* `.sheet-body`. Tighten further if kids hit it on real phones.
+2. **Arcade on touch** — keyboard-heavy; consider on-screen controls for tablets.
+3. **2-hop skip UX** — confirm skip toast/copy is clear so kids know they skipped a Story Stone stop on purpose.
+4. **Predator feel** — tune spawn dens / chase so beginner isn’t unfair; hard stays spicy.
+5. **Delete local junk PNGs** under `assets/` (untracked) to declutter.
+6. **Optional:** named historical figures only with careful research; don’t invent sacred personhood.
+7. **Playtest full path** on a real phone (iOS Safari): title → finale, rice mole, 2-hop dodge, bag/rest.
+
+---
+
+## Cultural / design constraints
+
+- Dakota & Ojibwe = living cultures; dig = practice only; sacred sites look-don’t-touch.
+- Avoid purple/cream AI clichés; avoid racist “Huck Finn” caricature tropes.
+- Keep ES modules / static Pages hosting.
 
 ---
 
@@ -118,22 +124,11 @@ Ink/watercolor-ish plates generated and aliased to data IDs:
 ```bash
 cd "/Users/admin/Minnesota Trail"
 python3 -m http.server 8080
-# Hard refresh browser; clear localStorage if old save breaks (key: minnesota-portage-v4)
-
-# gh (if needed):
-# /Users/admin/Projects/wwi-letters/.tools/bin/gh
+# Hard refresh; clear localStorage key minnesota-portage-v5 if needed
 ```
-
----
-
-## Do not regress
-
-- Respectful Dakota/Ojibwe framing; dig is **practice** only; Bdote/Pipestone treated with care.
-- Kid doodle SVG remains as fallback when portrait missing; outfits still layer on SVG.
-- Keep ES modules / static hosting (GitHub Pages).
 
 ---
 
 ## Suggested first message for the new agent
 
-> Read `HANDOFF.md`. Continue Minnesota Portage: unify ink+watercolor art for all 8 characters + stop plates, smoke-test the no-scroll map travel loop on a phone-sized viewport, fix any broken dismiss/travel wiring, then commit and redeploy to GitHub Pages when I ask.
+> Read `HANDOFF.md`. Minnesota Portage is live at https://lakeelmo.github.io/minnesota-portage/ (`main` @ fbe21ce). Playtest the 2-hop map chase (predators + migratory herds), shuffled quizzes, and rice whack-a-mole on a phone viewport; fix any remaining in-sheet scrolling or unfair predator pacing; then commit/push when I ask.
