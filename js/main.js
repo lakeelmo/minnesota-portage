@@ -7,8 +7,8 @@ import {
   clearSave,
   getActivePlayer,
   ensureCpuRival,
-} from "./state.js?v=race8";
-import { CHARACTERS } from "./characters.js?v=race8";
+} from "./state.js?v=race10";
+import { CHARACTERS } from "./characters.js?v=race10";
 import {
   beginBoard,
   dismissIntro,
@@ -21,7 +21,7 @@ import {
   finishBoardArcade,
   useStoryHint,
   cpuAct,
-} from "./boardgame.js?v=race8";
+} from "./boardgame.js?v=race10";
 import {
   renderTitle,
   renderPartySetup,
@@ -31,8 +31,8 @@ import {
   showToast,
   syncTrail,
   syncMinigameOnly,
-} from "./ui.js?v=race8";
-import { mountArcade, isArcadeType } from "./arcade.js?v=race8";
+} from "./ui.js?v=race10";
+import { mountArcade, isArcadeType } from "./arcade.js?v=race10";
 
 const app = document.getElementById("app");
 
@@ -73,22 +73,38 @@ function scheduleCpu() {
   const p = getActivePlayer(run);
   if (!p?.isCpu) return;
 
-  // Pace so humans can read CPU questions
+  // Don't fight the arcade AI loop
+  if (arcadePlaying()) return;
+
+  const enc = run.encounter;
+  const g = enc?.game;
   let delay = 900;
-  if (run.encounter?.kind === "story-card" && !run.encounter.answered) delay = 1600;
-  if (run.encounter?.kind === "story-card" && run.encounter.answered) delay = 1400;
-  if (run.encounter?.kind === "minigame") delay = 1100;
-  if (run.turnPhase === "pick") delay = 700;
-  if (run.turnPhase === "roll" && !run.encounter) delay = 600;
+  if (enc?.kind === "story-card" && !enc.answered && enc.cpuFocus == null) delay = 2000;
+  if (enc?.kind === "story-card" && !enc.answered && enc.cpuFocus != null) delay = 1400;
+  if (enc?.kind === "story-card" && enc.answered) delay = 1800;
+  if (enc?.kind === "minigame" && g?.type === "memory" && (g.flipped || []).length === 2) delay = 900;
+  else if (enc?.kind === "minigame" && g?.type === "memory") delay = 700;
+  else if (enc?.kind === "minigame" && g?.type === "dig") delay = 650;
+  else if (enc?.kind === "minigame" && g?.type === "rice") delay = 500;
+  else if (enc?.kind === "minigame" && g?.done) delay = 1600;
+  else if (enc?.kind === "minigame") delay = 800;
+  if (run.turnPhase === "pick") delay = 900;
+  if (run.turnPhase === "roll" && !run.encounter) delay = 800;
 
   cpuTimer = setTimeout(() => {
     cpuTimer = null;
     if (!run || getActivePlayer(run)?.id !== p.id) return;
+    if (arcadePlaying()) return;
     const next = cpuAct(run);
     if (next) {
       if (next.diceFace?.type === "move") showToast(`CPU rolled ${next.diceFace.label}`);
-      if (next.diceFace?.type === "minigame") showToast("CPU rolled 🎮");
+      if (next.diceFace?.type === "minigame") showToast("CPU rolled 🎮 — watch their challenge");
+      if (next.encounter?.kind === "story-card" && next.encounter.cpuFocus != null && run.encounter?.cpuFocus == null) {
+        showToast("CPU is choosing an answer…");
+      }
       update(next);
+    } else if (run.encounter?.kind === "minigame" && run.encounter.game && !isArcadeType(run.encounter.game.type) && !run.encounter.game.done) {
+      scheduleCpu();
     }
   }, delay);
 }
@@ -277,7 +293,6 @@ function paint() {
 function maybeStartRiceMole() {
   const g = run?.encounter?.game;
   if (!g || g.type !== "rice" || g.done || riceTimer) return;
-  if (getActivePlayer(run)?.isCpu) return;
   riceTimer = setInterval(() => {
     if (!run?.encounter?.game || run.encounter.game.type !== "rice") {
       if (riceTimer) { clearInterval(riceTimer); riceTimer = null; }
@@ -293,28 +308,36 @@ function maybeStartRiceMole() {
     const root = app.querySelector(".board-screen");
     if (root) syncMinigameOnly(root, run, trailHandlers());
     else update(next);
+    if (getActivePlayer(run)?.isCpu) scheduleCpu();
   }, 700);
 }
 
 function maybeStartArcade() {
   const g = run?.encounter?.game;
   if (!g || !isArcadeType(g.type)) return;
-  if (getActivePlayer(run)?.isCpu) return;
   const board = app.querySelector("[data-mg]");
   if (!board || arcadeSession) return;
 
-  showToast("Enter to start · Arrows move · Space action · Click also works");
+  const cpu = !!getActivePlayer(run)?.isCpu;
+  if (!cpu) showToast("Enter to start · Arrows move · Space action · Click also works");
+  else showToast("CPU is playing this challenge — watch closely");
+
   arcadeSession = mountArcade(
     board,
     g.type,
-    { difficulty: run.difficulty, puzzleMaster: run.puzzleMaster, weapon: run.equippedWeapon, strongArms: run.strongArms },
+    {
+      difficulty: run.difficulty,
+      puzzleMaster: run.puzzleMaster,
+      weapon: run.equippedWeapon,
+      strongArms: run.strongArms,
+      autoPlay: cpu,
+    },
     (result) => {
       destroyArcade();
-      showToast(result.won ? "Challenge cleared!" : "Challenge over");
+      showToast(result.won ? (cpu ? "CPU cleared the challenge!" : "Challenge cleared!") : (cpu ? "CPU slipped the challenge" : "Challenge over"));
       update(finishBoardArcade(run, result));
     }
   );
-  // Enlarge canvas for fullscreen feel
   const canvas = board.querySelector("canvas");
   if (canvas) {
     canvas.width = Math.min(960, Math.floor(window.innerWidth * 0.7));

@@ -11,9 +11,9 @@ import {
   bestForwardMove,
   FINISH_ID,
   MINIGAME_POOL,
-} from "./board.js?v=race8";
-import { drawStoryCard } from "./quizdeck.js?v=race8";
-import { DIFFICULTIES, pickRandom, shuffle } from "./data.js?v=race8";
+} from "./board.js?v=race10";
+import { drawStoryCard } from "./quizdeck.js?v=race10";
+import { DIFFICULTIES, pickRandom, shuffle } from "./data.js?v=race10";
 import {
   createDigGame,
   digAt,
@@ -23,10 +23,10 @@ import {
   createRiceGame,
   tickRiceGame,
   catchRicePod,
-} from "./minigames.js?v=race8";
-import { ARCADE_META, isArcadeType } from "./arcade.js?v=race8";
-import { addScore, applyDamage, clamp, getActivePlayer } from "./state.js?v=race8";
-import { QUEST } from "./quest.js?v=race8";
+} from "./minigames.js?v=race10";
+import { ARCADE_META, isArcadeType } from "./arcade.js?v=race10";
+import { addScore, applyDamage, clamp, getActivePlayer } from "./state.js?v=race10";
+import { QUEST } from "./quest.js?v=race10";
 
 export const DIE_FACES = [
   { type: "move", value: 1, label: "1" },
@@ -185,18 +185,30 @@ function challengeEncounter(state, space, fromDice = false) {
   } else {
     game = createDigGame({ attempts: 5 });
   }
+
+  const names = {
+    rice: "Manoomin Harvest",
+    memory: "Cliff Memory",
+    dig: "Careful Dig",
+    portage: ARCADE_META.portage?.title,
+    forage: ARCADE_META.forage?.title,
+  };
+  const challengeName = names[type] || ARCADE_META[type]?.title || space.name || "Trail Challenge";
+
   return {
     ...state,
     encounter: {
       kind: "minigame",
       space,
       fromDice,
-      title: `${space.icon || "🎮"} ${space.name}`,
-      blurb: ARCADE_META[type]?.blurb || space.blurb || "Use arrows and clicks.",
+      title: `${space.icon || "🎮"} ${challengeName}`,
+      blurb: type === "rice"
+        ? "Knock ripe 🌾 pods into your bundle. Leave green 🌱 plants to reseed."
+        : (ARCADE_META[type]?.blurb || space.blurb || "Use arrows and clicks."),
       controls: ARCADE_META[type]?.controls
-        || (type === "rice" ? "Click ripe 🌾 pods · leave 🌱 alone"
-          : type === "memory" ? "Click cards to match pairs"
-            : type === "dig" ? "Click squares to dig"
+        || (type === "rice" ? "Click ripe 🌾 pods · leave 🌱 alone · Continue when done"
+          : type === "memory" ? "Click cards to match pairs · Continue when done"
+            : type === "dig" ? "Click squares to dig · Continue when done"
               : "Arrow keys + click / Space"),
       game,
     },
@@ -372,7 +384,7 @@ function endTurn(state, note) {
   return next;
 }
 
-/** CPU: roll, pick best forward space, or play through quiz/minigame with a chosen answer. */
+/** CPU: roll, pick best forward space, or visibly play quiz/minigame steps. */
 export function cpuAct(state) {
   const p = getActivePlayer(state);
   if (!p?.isCpu || state.gameOver) return null;
@@ -382,15 +394,23 @@ export function cpuAct(state) {
   }
 
   if (state.encounter?.kind === "story-card" && !state.encounter.answered) {
-    // CPU answers correctly most of the time on beginner, less on hard
-    const skill = state.difficulty === "hard" ? 0.55 : state.difficulty === "beginner" ? 0.9 : 0.75;
     const enc = state.encounter;
-    let pick = enc.card.answer;
-    if (Math.random() > skill) {
-      const wrong = enc.card.choices.map((_, i) => i).filter((i) => i !== enc.card.answer);
-      pick = pickRandom(wrong);
+    // Step 1: show which answer the CPU is leaning toward
+    if (enc.cpuFocus == null) {
+      const skill = state.difficulty === "hard" ? 0.55 : state.difficulty === "beginner" ? 0.9 : 0.75;
+      let pick = enc.card.answer;
+      if (Math.random() > skill) {
+        const wrong = enc.card.choices.map((_, i) => i).filter((i) => i !== enc.card.answer);
+        pick = pickRandom(wrong);
+      }
+      return {
+        ...state,
+        encounter: { ...enc, cpuFocus: pick },
+        log: [...(state.log || []), `🤖 ${p.name} is thinking…`],
+      };
     }
-    return answerStoryCard(state, pick);
+    // Step 2: lock in the answer
+    return answerStoryCard(state, enc.cpuFocus);
   }
 
   if (state.encounter?.kind === "story-card" && state.encounter.answered) {
@@ -398,9 +418,58 @@ export function cpuAct(state) {
   }
 
   if (state.encounter?.kind === "minigame") {
-    // Auto-clear CPU minigames (still shown briefly in UI)
-    const game = { ...state.encounter.game, done: true, won: Math.random() > 0.35 };
-    return finishBoardMinigame({ ...state, encounter: { ...state.encounter, game } });
+    const enc = state.encounter;
+    const game = enc.game;
+    if (!game) return null;
+
+    // Arcade challenges are played live in mountArcade({ autoPlay: true })
+    if (isArcadeType(game.type)) {
+      if (game.done) return finishBoardArcade(state, { won: !!game.won, score: game.score || 0 });
+      return null; // wait for arcade AI to finish
+    }
+
+    if (game.done) {
+      return finishBoardMinigame(state);
+    }
+
+    if (game.type === "memory") {
+      if ((game.flipped || []).length >= 2) {
+        const [a, b] = game.flipped.map((id) => game.cards.find((c) => c.id === id));
+        if (a && b && a.pair !== b.pair) {
+          return handleBoardMinigame(state, { type: "memory-unflip" });
+        }
+      }
+      const faceDown = game.cards.filter((c) => !c.flipped && !c.matched);
+      if (!faceDown.length) return finishBoardMinigame({ ...state, encounter: { ...enc, game: { ...game, done: true, won: true } } });
+
+      let pickId = faceDown[0].id;
+      if ((game.flipped || []).length === 1) {
+        const first = game.cards.find((c) => c.id === game.flipped[0]);
+        const skill = state.difficulty === "hard" ? 0.45 : state.difficulty === "beginner" ? 0.85 : 0.65;
+        const match = faceDown.find((c) => c.pair === first?.pair);
+        pickId = match && Math.random() < skill ? match.id : pickRandom(faceDown).id;
+      } else {
+        pickId = pickRandom(faceDown).id;
+      }
+      return handleBoardMinigame(state, { type: "memory-flip", id: pickId });
+    }
+
+    if (game.type === "dig") {
+      const hidden = game.cells.filter((c) => !c.revealed);
+      if (!hidden.length) return finishBoardMinigame(state);
+      return handleBoardMinigame(state, { type: "dig", i: pickRandom(hidden).i });
+    }
+
+    if (game.type === "rice") {
+      const ripe = (game.pods || []).filter((pod) => pod.phase === "ripe");
+      if (ripe.length) {
+        return handleBoardMinigame(state, { type: "rice-catch", id: pickRandom(ripe).id });
+      }
+      // Let the rice timer advance; no state change this beat
+      return null;
+    }
+
+    return null;
   }
 
   if (state.turnPhase === "roll") {

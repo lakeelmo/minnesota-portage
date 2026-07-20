@@ -11,8 +11,8 @@ import {
   shuffleChoices,
   undirectedNeighbors,
   getStop,
-} from "./data.js?v=race8";
-import { CLOTHING, getClothing } from "./characters.js?v=race8";
+} from "./data.js?v=race10";
+import { CLOTHING, getClothing } from "./characters.js?v=race10";
 import {
   travelCost,
   applyDamage,
@@ -26,9 +26,9 @@ import {
   nextPlayer,
   getActivePlayer,
   clamp,
-} from "./state.js?v=race8";
-import { companionLine, companionTip } from "./companions.js?v=race8";
-import { ANIMALS, getAnimal, hasBonus, lockedAnimals } from "./animals.js?v=race8";
+} from "./state.js?v=race10";
+import { companionLine, companionTip } from "./companions.js?v=race10";
+import { ANIMALS, getAnimal, hasBonus, lockedAnimals } from "./animals.js?v=race10";
 import {
   createDigGame,
   digAt,
@@ -38,9 +38,9 @@ import {
   createRiceGame,
   catchRicePod,
   tickRiceGame,
-} from "./minigames.js?v=race8";
-import { ARCADE_META, isArcadeType } from "./arcade.js?v=race8";
-import { QUEST } from "./quest.js?v=race8";
+} from "./minigames.js?v=race10";
+import { ARCADE_META, isArcadeType } from "./arcade.js?v=race10";
+import { QUEST } from "./quest.js?v=race10";
 
 /* ─────────────── Intro ─────────────── */
 

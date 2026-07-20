@@ -1,12 +1,12 @@
-import { CHARACTERS, SUPERPOWERS, renderPortrait } from "./characters.js?v=race8";
-import { DIFFICULTIES } from "./data.js?v=race8";
-import { getActivePlayer } from "./state.js?v=race8";
-import { BOARD, getSpace } from "./board.js?v=race8";
-import { deckRemaining } from "./quizdeck.js?v=race8";
-import { QUEST } from "./quest.js?v=race8";
-import { ARCADE_META, isArcadeType } from "./arcade.js?v=race8";
-import { linkNativeWords, bindSayButtons, unlockAudio } from "./audio.js?v=race8";
-import { legalMoves, playerPosition } from "./boardgame.js?v=race8";
+import { CHARACTERS, SUPERPOWERS, renderPortrait } from "./characters.js?v=race10";
+import { DIFFICULTIES } from "./data.js?v=race10";
+import { getActivePlayer } from "./state.js?v=race10";
+import { BOARD, getSpace } from "./board.js?v=race10";
+import { deckRemaining } from "./quizdeck.js?v=race10";
+import { QUEST } from "./quest.js?v=race10";
+import { ARCADE_META, isArcadeType } from "./arcade.js?v=race10";
+import { linkNativeWords, bindSayButtons, unlockAudio } from "./audio.js?v=race10";
+import { legalMoves, playerPosition } from "./boardgame.js?v=race10";
 
 export function el(html) {
   const t = document.createElement("template");
@@ -169,22 +169,27 @@ function renderBoardSvg(state) {
       const a = getSpace(s.id);
       const b = getSpace(n);
       if (!a || !b) continue;
-      edges.push(`<line class="board-edge" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" />`);
+      edges.push(`
+        <line class="board-edge-glow" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" />
+        <line class="board-edge" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" />
+      `);
     }
   }
 
   const nodes = BOARD.map((s) => {
     const glow = legal.has(s.id);
     const isHere = s.id === activePos;
+    const kind = s.kind === "finish" ? "kind-finish" : s.kind === "start" ? "kind-start" : "";
     return `
-      <g class="board-node ${glow ? "legal" : ""} ${isHere ? "here" : ""} ${s.kind === "finish" ? "kind-finish" : ""}"
+      <g class="board-node ${glow ? "legal" : ""} ${isHere ? "here" : ""} ${kind}"
          data-space="${s.id}" ${glow ? `data-move="${s.id}"` : ""}>
-        <circle class="legal-glow" cx="${s.x}" cy="${s.y}" r="48" />
-        <circle class="legal-ring" cx="${s.x}" cy="${s.y}" r="36" />
-        <circle class="board-disc" cx="${s.x}" cy="${s.y}" r="22" />
-        <text class="board-icon" x="${s.x}" y="${s.y + 7}" text-anchor="middle">${s.icon || "•"}</text>
-        <text class="board-label" x="${s.x}" y="${s.y + 46}" text-anchor="middle">${s.name}</text>
-        <g class="legal-badge" transform="translate(${s.x}, ${s.y - 36})">
+        <circle class="legal-glow" cx="${s.x}" cy="${s.y}" r="52" />
+        <circle class="legal-ring" cx="${s.x}" cy="${s.y}" r="38" />
+        <circle class="board-disc-shadow" cx="${s.x}" cy="${s.y + 3}" r="24" />
+        <circle class="board-disc" cx="${s.x}" cy="${s.y}" r="23" />
+        <text class="board-icon" x="${s.x}" y="${s.y + 8}" text-anchor="middle">${s.icon || "•"}</text>
+        <text class="board-label" x="${s.x}" y="${s.y + 48}" text-anchor="middle">${s.name}</text>
+        <g class="legal-badge" transform="translate(${s.x}, ${s.y - 38})">
           <rect x="-26" y="-13" width="52" height="24" rx="12" />
           <text y="4" text-anchor="middle">GO</text>
         </g>
@@ -197,13 +202,18 @@ function renderBoardSvg(state) {
     const isActive = i === state.activePlayer;
     const color = p.isCpu ? "#1a4a63" : "#c45c4a";
     const label = p.isCpu ? "CPU" : "YOU";
-    const offset = state.players.length > 1 ? (i === 0 ? -14 : 14) : 0;
+    const offsetX = state.players.length > 1 ? (i === 0 ? -16 : 16) : 0;
+    const offsetY = state.players.length > 1 ? (i === 0 ? -10 : 10) : -6;
     return `
       <g class="player-token ${isActive ? "token-active" : "token-idle"}" data-token="${p.id}"
-         transform="translate(${sp.x + offset}, ${sp.y + (i === 0 ? -8 : 8)})">
-        <circle class="player-halo" r="40" style="stroke:${color}" />
-        <circle class="player-pawn" r="17" style="fill:${color}" />
-        <text class="player-you" y="5" text-anchor="middle">${label}</text>
+         transform="translate(${sp.x + offsetX}, ${sp.y + offsetY})">
+        <circle class="player-halo" r="42" style="stroke:${color}" />
+        <circle class="player-pawn" r="18" style="fill:${color}" />
+        <text class="player-mark" y="6" text-anchor="middle">${p.isCpu ? "🤖" : "⭐"}</text>
+        <g class="player-flag" transform="translate(0, -28)">
+          <rect x="-22" y="-12" width="44" height="20" rx="10" style="fill:${color}" />
+          <text y="3" text-anchor="middle">${label}</text>
+        </g>
       </g>`;
   }).join("");
 
@@ -214,8 +224,20 @@ function renderBoardSvg(state) {
           <stop offset="0%" stop-color="#ffe08a" stop-opacity="0.95"/>
           <stop offset="100%" stop-color="#d4a017" stop-opacity="0"/>
         </radialGradient>
+        <linearGradient id="boardWash" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#7eb6c9" stop-opacity="0.35"/>
+          <stop offset="45%" stop-color="#dfece6" stop-opacity="0.15"/>
+          <stop offset="100%" stop-color="#2f6b4f" stop-opacity="0.28"/>
+        </linearGradient>
+        <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="3" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
       </defs>
-      <image href="assets/map-st-croix.jpg" x="0" y="0" width="1200" height="780" opacity="0.22" preserveAspectRatio="xMidYMid slice" />
+      <rect class="board-sky" x="0" y="0" width="1200" height="780" fill="#b7cfc8"/>
+      <image href="assets/map-st-croix.jpg" x="0" y="0" width="1200" height="780" opacity="0.38" preserveAspectRatio="xMidYMid slice" />
+      <rect x="0" y="0" width="1200" height="780" fill="url(#boardWash)" />
+      <text class="board-title-art" x="600" y="48" text-anchor="middle">St. Croix Valley Race</text>
       ${edges.join("")}
       ${nodes}
       ${tokens}
@@ -307,15 +329,35 @@ export function syncTrail(root, state, handlers) {
     const token = root.querySelector(`[data-token="${p.id}"]`);
     const sp = getSpace(p.position || "start");
     if (!token || !sp) return;
-    const offset = state.players.length > 1 ? (i === 0 ? -14 : 14) : 0;
-    token.setAttribute("transform", `translate(${sp.x + offset}, ${sp.y + (i === 0 ? -8 : 8)})`);
+    const offsetX = state.players.length > 1 ? (i === 0 ? -16 : 16) : 0;
+    const offsetY = state.players.length > 1 ? (i === 0 ? -10 : 10) : -6;
+    token.setAttribute("transform", `translate(${sp.x + offsetX}, ${sp.y + offsetY})`);
     token.classList.toggle("token-active", i === state.activePlayer);
   });
 
   let overlay = root.querySelector(".encounter-overlay");
   const enc = state.encounter;
   const encKey = enc
-    ? `${enc.kind}:${enc.card?.id || enc.game?.type || ""}:${enc.answered}:${enc.hintShown}:${enc.picked}:${enc.game?.caught}:${enc.game?.ticksLeft}:${enc.game?.done}`
+    ? [
+        enc.kind,
+        enc.card?.id || enc.game?.type || "",
+        enc.answered,
+        enc.hintShown,
+        enc.picked,
+        enc.cpuFocus,
+        enc.cpuReveal,
+        enc.cpuWon,
+        enc.game?.caught,
+        enc.game?.ticksLeft,
+        enc.game?.done,
+        enc.game?.moves,
+        enc.game?.attemptsLeft,
+        enc.game?.bag,
+        (enc.game?.flipped || []).join("-"),
+        (enc.game?.cards || []).map((c) => `${c.id}:${c.flipped ? 1 : 0}${c.matched ? "m" : ""}`).join(","),
+        (enc.game?.cells || []).map((c) => (c.revealed ? "1" : "0")).join(""),
+        (enc.game?.pods || []).map((p) => p.phase[0]).join(""),
+      ].join(":")
     : "";
 
   if (!enc) {
@@ -354,12 +396,13 @@ export function syncMinigameOnly(root, state, handlers) {
   renderMinigameBoard(board, enc.game, handlers, enc);
   if (enc.game.done) {
     const panel = root.querySelector("#encounter");
-    if (panel && !panel.querySelector("[data-a=done]")) {
+    const full = panel?.querySelector(".mg-full");
+    if (full && !full.querySelector("[data-a=done]")) {
       const row = document.createElement("div");
-      row.className = "mg-done-row";
+      row.className = "mg-footer";
       row.innerHTML = `<button class="btn btn-primary btn-big" data-a="done">Continue →</button>`;
       row.querySelector("[data-a=done]").onclick = handlers.minigameDone;
-      panel.appendChild(row);
+      full.appendChild(row);
     }
   }
   return true;
@@ -446,13 +489,15 @@ function fillEncounter(panel, state, handlers) {
       <div class="quiz-layout">
         <div class="quiz-split">
           <div class="quiz-answers-pane">
-            <p class="pane-label">${cpuLock ? "CPU is choosing…" : enc.answered ? "Your answers" : "Choose an answer"}</p>
+            <p class="pane-label">${cpuLock ? (enc.answered ? "CPU answered" : enc.cpuFocus != null ? "CPU picks…" : "CPU is reading…") : enc.answered ? "Your answers" : "Choose an answer"}</p>
             <div class="quiz-options quiz-stack">
               ${c.choices.map((t, i) => {
                 let cls = "btn quiz-option";
                 if (enc.answered) {
                   if (i === c.answer) cls += " correct";
                   else if (i === enc.picked) cls += " wrong";
+                } else if (cpuLock && enc.cpuFocus === i) {
+                  cls += " cpu-focus";
                 }
                 return `<button class="${cls}" data-i="${i}" ${enc.answered || cpuLock ? "disabled" : ""}><span class="opt-letter">${String.fromCharCode(65 + i)}</span><span class="opt-text">${t}</span></button>`;
               }).join("")}
@@ -493,23 +538,32 @@ function fillEncounter(panel, state, handlers) {
     const game = enc.game;
     const arcade = isArcadeType(game.type);
     const meta = arcade ? ARCADE_META[game.type] : null;
+    const title = meta?.title || enc.title || "Trail challenge";
+    const blurb = enc.blurb || meta?.blurb || "";
+
     panel.innerHTML = `
       <div class="mg-full">
         <header class="mg-full-head">
-          <h2>${enc.title}</h2>
-          <p class="mg-controls">${enc.controls || meta?.controls || "Use arrow keys and mouse clicks"}</p>
-          <p class="mg-blurb">${enc.blurb || meta?.blurb || ""}</p>
+          ${cpuLock ? `<p class="pane-label cpu-live">🤖 ${active?.name || "CPU"} is playing</p>` : ""}
+          <h2>${title}</h2>
+          <p class="mg-controls">${cpuLock ? "Watch the CPU attempt this challenge" : (enc.controls || meta?.controls || "Use arrow keys and mouse clicks")}</p>
+          <p class="mg-blurb">${blurb}</p>
         </header>
         <div class="minigame-board mg-full-board ${arcade ? "arcade-board" : ""}" data-mg data-arcade="${arcade ? game.type : ""}"></div>
-        ${!arcade && game.done ? `<div class="mg-done-row"><button class="btn btn-primary btn-big" data-a="done">Continue →</button></div>` : ""}
+        ${!arcade && game.done ? `
+          <div class="mg-footer">
+            <button class="btn btn-primary btn-big" data-a="done" ${cpuLock ? "disabled" : ""}>
+              ${cpuLock ? "CPU finishing…" : "Continue →"}
+            </button>
+          </div>` : ""}
       </div>
     `;
     const board = panel.querySelector("[data-mg]");
     if (!arcade) {
       renderMinigameBoard(board, game, handlers, enc);
-      if (game.done) panel.querySelector("[data-a=done]").onclick = handlers.minigameDone;
+      if (!cpuLock) panel.querySelector("[data-a=done]")?.addEventListener("click", handlers.minigameDone);
     } else {
-      board.innerHTML = `<div class="arcade-placeholder"><p>Click the game area</p><p><kbd>Enter</kbd> start · <kbd>←→↑↓</kbd> move · <kbd>Space</kbd> action</p></div>`;
+      board.innerHTML = `<div class="arcade-placeholder"><p>${cpuLock ? "CPU starting challenge…" : "Click the game area"}</p><p><kbd>Enter</kbd> start · <kbd>←→↑↓</kbd> move · <kbd>Space</kbd> action</p></div>`;
     }
     return;
   }

@@ -4,10 +4,10 @@ import {
   getWeapon,
   getAilment,
   pickRandom,
-} from "./data.js?v=race8";
-import { CLOTHING, getClothing, CHARACTERS } from "./characters.js?v=race8";
-import { getAnimal } from "./animals.js?v=race8";
-import { BOARD } from "./board.js?v=race8";
+} from "./data.js?v=race10";
+import { CLOTHING, getClothing, CHARACTERS } from "./characters.js?v=race10";
+import { getAnimal } from "./animals.js?v=race10";
+import { BOARD } from "./board.js?v=race10";
 
 const SAVE_KEY = "minnesota-portage-v8";
 

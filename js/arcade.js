@@ -2,7 +2,7 @@
  * Oregon Trail–style arcade minigames.
  * Controls: Arrow keys move · Space action · Enter start/skip-end
  */
-import { getWeapon } from "./data.js?v=race8";
+import { getWeapon } from "./data.js?v=race10";
 
 const KEY = {
   left: "ArrowLeft",
@@ -28,9 +28,9 @@ export const ARCADE_META = {
   },
   forage: {
     id: "forage",
-    title: "Resource Forage",
+    title: "Woodland Harvest",
     blurb: "Explore the woods for berries, sap, and fish. Watch for buzzing pests!",
-    controls: "Arrow keys or click to move · Space / click gather · Enter start",
+    controls: "Arrow keys or click to move · Space / click gather · Enter start · Continue when done",
   },
   trap: {
     id: "trap",
@@ -59,7 +59,7 @@ function pick(arr) {
 }
 
 /** @returns {{ destroy: Function }} */
-export function mountArcade(container, gameId, { difficulty = "beginner", puzzleMaster = false, weapon = null, strongArms = false, calmWater = false } = {}, onComplete) {
+export function mountArcade(container, gameId, { difficulty = "beginner", puzzleMaster = false, weapon = null, strongArms = false, calmWater = false, autoPlay = false } = {}, onComplete) {
   const canvas = document.createElement("canvas");
   canvas.width = 640;
   canvas.height = 360;
@@ -73,7 +73,9 @@ export function mountArcade(container, gameId, { difficulty = "beginner", puzzle
 
   const keysHelp = document.createElement("div");
   keysHelp.className = "arcade-keys";
-  keysHelp.innerHTML = keyLegend(gameId);
+  keysHelp.innerHTML = autoPlay
+    ? `<span class="cpu-live">🤖 CPU playing — watch!</span>`
+    : keyLegend(gameId);
 
   container.innerHTML = "";
   container.appendChild(hud);
@@ -85,16 +87,26 @@ export function mountArcade(container, gameId, { difficulty = "beginner", puzzle
   let raf = 0;
   let alive = true;
   let last = performance.now();
+  let autoFinishTimer = null;
+  let actionCd = 0;
 
   const scale =
     difficulty === "hard" ? 1.25 : difficulty === "medium" ? 1.1 : 1;
   const ease = puzzleMaster ? 0.85 : 1;
 
   const game = createGame(gameId, canvas.width, canvas.height, scale * ease, { weapon, strongArms, calmWater });
-  hud.textContent = game.hud();
+  hud.textContent = autoPlay ? `🤖 CPU · ${game.hud()}` : game.hud();
+
+  if (autoPlay) {
+    setTimeout(() => {
+      if (!alive || game.started) return;
+      game.started = true;
+      game.message = "";
+    }, 700);
+  }
 
   const onKeyDown = (e) => {
-    if (!alive) return;
+    if (!alive || autoPlay) return;
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
       e.preventDefault();
     }
@@ -118,8 +130,27 @@ export function mountArcade(container, gameId, { difficulty = "beginner", puzzle
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
 
+  const continueRow = document.createElement("div");
+  continueRow.className = "mg-done-row arcade-continue-row";
+  continueRow.hidden = true;
+  continueRow.innerHTML = `<button type="button" class="btn btn-primary btn-big" data-arcade-continue>Continue →</button>`;
+  continueRow.querySelector("[data-arcade-continue]").addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    finish();
+  });
+  container.appendChild(continueRow);
+
+  const showContinue = () => {
+    continueRow.hidden = false;
+    hud.textContent = `${game.message || "Challenge finished"} · ${autoPlay ? "CPU done" : "tap Continue"}`;
+    if (autoPlay && !autoFinishTimer) {
+      autoFinishTimer = setTimeout(() => finish(), 2200);
+    }
+  };
+
   const onPointer = (e) => {
-    if (!alive) return;
+    if (!alive || autoPlay) return;
     e.preventDefault();
     canvas.focus();
     const rect = canvas.getBoundingClientRect();
@@ -130,10 +161,8 @@ export function mountArcade(container, gameId, { difficulty = "beginner", puzzle
       game.message = "";
       return;
     }
-    if (game.done) {
-      finish();
-      return;
-    }
+    // When finished, only the Continue button (or Enter) closes — not canvas clicks
+    if (game.done) return;
     // Steer toward click, then fire action
     if (typeof game.pointer === "function") {
       game.pointer(x, y);
@@ -160,11 +189,66 @@ export function mountArcade(container, gameId, { difficulty = "beginner", puzzle
   function finish() {
     if (!alive) return;
     alive = false;
+    if (autoFinishTimer) { clearTimeout(autoFinishTimer); autoFinishTimer = null; }
     cancelAnimationFrame(raf);
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
     canvas.removeEventListener("pointerdown", onPointer);
     onComplete(game.result());
+  }
+
+  function cpuMove(dt) {
+    actionCd -= dt;
+    const move = { x: 0, y: 0 };
+    let doAction = false;
+
+    if (game.type === "forage") {
+      const items = (game.items || []).filter((it) => !it.taken);
+      if (items.length) {
+        items.sort((a, b) => Math.abs(a.c - game.x) + Math.abs(a.r - game.y) - (Math.abs(b.c - game.x) + Math.abs(b.r - game.y)));
+        const t = items[0];
+        move.x = Math.sign(t.c - game.x);
+        move.y = Math.sign(t.r - game.y);
+        if (t.c === game.x && t.r === game.y && actionCd <= 0) {
+          doAction = true;
+          actionCd = 0.25;
+        }
+      }
+    } else if (game.type === "hunt") {
+      const aliveAnimals = (game.animals || []).filter((a) => !a.hit);
+      if (aliveAnimals.length) {
+        aliveAnimals.sort((a, b) => Math.abs(a.x - game.hunterX) - Math.abs(b.x - game.hunterX));
+        const t = aliveAnimals[0];
+        move.x = Math.sign(t.x - game.hunterX);
+        if (Math.abs(t.x - game.hunterX) < 36 && actionCd <= 0) {
+          doAction = true;
+          actionCd = 0.55;
+        }
+      } else {
+        move.x = Math.sin(performance.now() / 400) > 0 ? 1 : -1;
+      }
+    } else if (game.type === "portage") {
+      move.x = 1;
+      if (game.hazardAhead && actionCd <= 0) {
+        move.y = Math.random() > 0.5 ? 1 : -1;
+        actionCd = 0.3;
+      }
+    } else if (game.type === "trap") {
+      if (actionCd <= 0) {
+        doAction = true;
+        actionCd = 0.8;
+        game.cursor = (game.cursor + 1) % (game.snares?.length || 5);
+      }
+    } else if (game.type === "paddle") {
+      move.x = 1;
+      if (actionCd <= 0) {
+        doAction = true;
+        actionCd = 0.4;
+      }
+    }
+
+    game.update(dt, move, keys);
+    if (doAction && typeof game.action === "function") game.action();
   }
 
   function frame(now) {
@@ -173,18 +257,21 @@ export function mountArcade(container, gameId, { difficulty = "beginner", puzzle
     last = now;
 
     if (game.started && !game.done) {
-      const move = {
-        x: (keys.has(KEY.right) ? 1 : 0) - (keys.has(KEY.left) ? 1 : 0),
-        y: (keys.has(KEY.down) ? 1 : 0) - (keys.has(KEY.up) ? 1 : 0),
-      };
-      game.update(dt, move, keys);
-      if (game.done) {
-        hud.textContent = game.hud();
+      if (autoPlay) {
+        cpuMove(dt);
+      } else {
+        const move = {
+          x: (keys.has(KEY.right) ? 1 : 0) - (keys.has(KEY.left) ? 1 : 0),
+          y: (keys.has(KEY.down) ? 1 : 0) - (keys.has(KEY.up) ? 1 : 0),
+        };
+        game.update(dt, move, keys);
       }
+      if (game.done) showContinue();
     }
 
     game.draw(ctx);
-    hud.textContent = game.hud();
+    if (!game.done) hud.textContent = (autoPlay ? "🤖 CPU · " : "") + game.hud();
+    else if (continueRow.hidden) showContinue();
     raf = requestAnimationFrame(frame);
   }
 
@@ -193,6 +280,7 @@ export function mountArcade(container, gameId, { difficulty = "beginner", puzzle
   return {
     destroy() {
       alive = false;
+      if (autoFinishTimer) { clearTimeout(autoFinishTimer); autoFinishTimer = null; }
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
@@ -342,14 +430,13 @@ function createHunt(w, h, scale, opts = {}) {
       ctx.lineTo(w, groundY);
       ctx.stroke();
 
-      // hunter
+      // hunter (obvious player avatar)
       ctx.save();
       if (this.flash > 0) ctx.globalAlpha = 0.7 + Math.sin(this.flash * 40) * 0.3;
-      ctx.font = "42px serif";
-      ctx.textAlign = "center";
-      ctx.fillText("🧍", this.hunterX, groundY - 8);
+      drawPlayerMarker(ctx, this.hunterX, groundY - 18, 34);
       ctx.font = "20px serif";
-      ctx.fillText(this.weaponEmoji, this.hunterX + 20, groundY - 22);
+      ctx.textAlign = "center";
+      ctx.fillText(this.weaponEmoji, this.hunterX + 26, groundY - 40);
       ctx.restore();
 
       for (const a of this.animals) {
@@ -623,9 +710,12 @@ function createForage(w, h, scale, opts = {}) {
         ctx.textAlign = "center";
         ctx.fillText("🦟", p.c * tw + tw / 2, 24 + p.r * th + th * 0.7);
       }
-      ctx.font = `${Math.min(tw, th) * 0.65}px serif`;
-      ctx.textAlign = "center";
-      ctx.fillText("🧭", this.x * tw + tw / 2, 24 + this.y * th + th * 0.72);
+      drawPlayerMarker(
+        ctx,
+        this.x * tw + tw / 2,
+        24 + this.y * th + th * 0.55,
+        Math.min(tw, th) * 0.55
+      );
       drawBanner(ctx, w, this);
     },
     result() {
@@ -887,6 +977,30 @@ function createRapids(w, h, scale, opts = {}) {
   };
 }
 
+function drawPlayerMarker(ctx, x, y, size = 28) {
+  // Clear "YOU are here" figure — ring + star + label
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.beginPath();
+  ctx.arc(0, -size * 0.15, size * 0.55, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255, 244, 200, 0.95)";
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "#c45c4a";
+  ctx.stroke();
+  ctx.font = `${Math.round(size * 0.95)}px serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("⭐", 0, -size * 0.1);
+  ctx.font = `bold ${Math.max(11, Math.round(size * 0.42))}px Lexend, sans-serif`;
+  ctx.fillStyle = "#c45c4a";
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 3;
+  ctx.strokeText("YOU", 0, size * 0.72);
+  ctx.fillText("YOU", 0, size * 0.72);
+  ctx.restore();
+}
+
 function drawBanner(ctx, w, game) {
   if (game.started && !game.done) return;
   ctx.fillStyle = "rgba(255,253,247,0.92)";
@@ -904,7 +1018,7 @@ function drawBanner(ctx, w, game) {
   ctx.textAlign = "center";
   wrapText(ctx, text, w / 2, y + 28, tw - 24, 20);
   ctx.font = "14px Fredoka, sans-serif";
-  ctx.fillText(game.done ? "Press Enter" : "Press Enter to start", w / 2, y + 52);
+  ctx.fillText(game.done ? "Continue →" : "Press Enter to start", w / 2, y + 52);
 }
 
 function roundRect(ctx, x, y, w, h, r) {
