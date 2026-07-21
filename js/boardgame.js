@@ -11,9 +11,9 @@ import {
   bestForwardMove,
   FINISH_ID,
   MINIGAME_POOL,
-} from "./board.js?v=race13";
-import { drawStoryCard } from "./quizdeck.js?v=race13";
-import { DIFFICULTIES, pickRandom, shuffle } from "./data.js?v=race13";
+} from "./board.js?v=race14";
+import { drawStoryCard } from "./quizdeck.js?v=race14";
+import { DIFFICULTIES, pickRandom, shuffle } from "./data.js?v=race14";
 import {
   createDigGame,
   digAt,
@@ -23,10 +23,10 @@ import {
   createRiceGame,
   tickRiceGame,
   catchRicePod,
-} from "./minigames.js?v=race13";
-import { ARCADE_META, isArcadeType } from "./arcade.js?v=race13";
-import { addScore, applyDamage, clamp, getActivePlayer } from "./state.js?v=race13";
-import { QUEST } from "./quest.js?v=race13";
+} from "./minigames.js?v=race14";
+import { ARCADE_META, isArcadeType } from "./arcade.js?v=race14";
+import { addScore, applyDamage, clamp, getActivePlayer } from "./state.js?v=race14";
+import { QUEST } from "./quest.js?v=race14";
 
 export const DIE_FACES = [
   { type: "move", value: 1, label: "1" },

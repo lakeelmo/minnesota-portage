@@ -72,6 +72,16 @@ export const BOARD = [
 export const FINISH_ID = "council";
 export const MINIGAME_POOL = ["rice", "memory", "dig", "portage", "forage", "hunt"];
 
+/** Home-screen practice catalog (all challenge types players can try freely). */
+export const PRACTICE_GAMES = [
+  { id: "portage", icon: "🥾", title: "Portage Carry", blurb: "Switch paths and dodge rocks on the trail.", kind: "arcade" },
+  { id: "hunt", icon: "🦌", title: "Forest Hunt", blurb: "Tap to throw — lead your shots.", kind: "arcade" },
+  { id: "forage", icon: "🫐", title: "Woodland Harvest", blurb: "Gather food and dodge mosquitoes.", kind: "arcade" },
+  { id: "rice", icon: "🌾", title: "Manoomin Harvest", blurb: "Knock ripe pods — leave green ones.", kind: "grid" },
+  { id: "memory", icon: "🎨", title: "Cliff Memory", blurb: "Match pictograph pairs on the cliff.", kind: "grid" },
+  { id: "dig", icon: "⛏️", title: "Careful Dig", blurb: "Find practice artifacts in the grid.", kind: "grid" },
+];
+
 export function getSpace(id) {
   return BOARD.find((s) => s.id === id) || null;
 }

@@ -2,7 +2,7 @@
  * Oregon Trail–style arcade minigames — tap-first for phones/tablets.
  * Mobile: tap the canvas or on-screen buttons. Desktop: arrows move, Space acts, Enter starts/continues.
  */
-import { getWeapon } from "./data.js?v=race13";
+import { getWeapon } from "./data.js?v=race14";
 
 const KEY = {
   left: "ArrowLeft",

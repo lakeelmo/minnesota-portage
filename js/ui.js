@@ -1,13 +1,13 @@
-import { CHARACTERS, SUPERPOWERS, renderPortrait } from "./characters.js?v=race13";
-import { DIFFICULTIES } from "./data.js?v=race13";
-import { getActivePlayer } from "./state.js?v=race13";
-import { BOARD, getSpace } from "./board.js?v=race13";
-import { deckRemaining } from "./quizdeck.js?v=race13";
-import { QUEST } from "./quest.js?v=race13";
-import { ARCADE_META, isArcadeType } from "./arcade.js?v=race13";
-import { linkNativeWords, bindSayButtons, unlockAudio } from "./audio.js?v=race13";
-import { legalMoves, playerPosition } from "./boardgame.js?v=race13";
-import { artForTopic, playerLabel } from "./labels.js?v=race13";
+import { CHARACTERS, SUPERPOWERS, renderPortrait } from "./characters.js?v=race14";
+import { DIFFICULTIES } from "./data.js?v=race14";
+import { getActivePlayer } from "./state.js?v=race14";
+import { BOARD, getSpace } from "./board.js?v=race14";
+import { deckRemaining } from "./quizdeck.js?v=race14";
+import { QUEST } from "./quest.js?v=race14";
+import { ARCADE_META, isArcadeType } from "./arcade.js?v=race14";
+import { linkNativeWords, bindSayButtons, unlockAudio } from "./audio.js?v=race14";
+import { legalMoves, playerPosition } from "./boardgame.js?v=race14";
+import { artForTopic, playerLabel } from "./labels.js?v=race14";
 
 export function el(html) {
   const t = document.createElement("template");
@@ -27,7 +27,7 @@ function clampInt(v, min, max) {
   return Math.max(min, Math.min(max, Number(v) || min));
 }
 
-export function renderTitle(onStart, onContinue, hasSave) {
+export function renderTitle(onStart, onContinue, hasSave, onPractice) {
   const node = el(`
     <section class="screen title-screen">
       <div class="title-hero">
@@ -38,8 +38,9 @@ export function renderTitle(onStart, onContinue, hasSave) {
           </div>
           <p class="title-lede">${QUEST.short}</p>
           <div class="btn-row title-cta">
-            <button class="btn btn-primary btn-big" data-action="start">Begin the Portage</button>
-            ${hasSave ? `<button class="btn btn-blue" data-action="continue">Continue</button>` : ""}
+            <button type="button" class="btn btn-primary btn-big" data-action="start">Begin the Portage</button>
+            ${hasSave ? `<button type="button" class="btn btn-blue" data-action="continue">Continue</button>` : ""}
+            <button type="button" class="btn btn-ghost title-practice-btn" data-action="practice">Practice challenges</button>
           </div>
           <p class="title-ages">Ages 9–11 · race · questions · challenges</p>
           <div class="title-cast" aria-hidden="true">
@@ -51,6 +52,69 @@ export function renderTitle(onStart, onContinue, hasSave) {
   `);
   node.querySelector('[data-action="start"]')?.addEventListener("click", () => { unlockAudio(); onStart(); });
   node.querySelector('[data-action="continue"]')?.addEventListener("click", () => { unlockAudio(); onContinue(); });
+  node.querySelector('[data-action="practice"]')?.addEventListener("click", () => { unlockAudio(); onPractice?.(); });
+  return node;
+}
+
+export function renderPracticeHub(gamesList, handlers) {
+  const node = el(`
+    <section class="screen practice-hub scroll-screen">
+      <div class="paper-card practice-card">
+        <header class="practice-head">
+          <h2 class="section-title">Practice challenges</h2>
+          <p class="hint">Try any minigame without starting a race. Tap one to play.</p>
+        </header>
+        <div class="practice-grid">
+          ${gamesList.map((g) => `
+            <button type="button" class="practice-tile" data-practice="${g.id}">
+              <span class="practice-icon" aria-hidden="true">${g.icon}</span>
+              <span class="practice-title">${g.title}</span>
+              <span class="practice-blurb">${g.blurb}</span>
+            </button>`).join("")}
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn btn-ghost" data-action="back">← Home</button>
+        </div>
+      </div>
+    </section>
+  `);
+  node.querySelectorAll("[data-practice]").forEach((btn) => {
+    btn.addEventListener("click", () => handlers.pick(btn.dataset.practice));
+  });
+  node.querySelector('[data-action="back"]')?.addEventListener("click", handlers.back);
+  return node;
+}
+
+export function renderPracticePlay({ meta, game, arcade }, handlers) {
+  const title = meta?.title || game?.type || "Challenge";
+  const blurb = meta?.blurb || "";
+  const controls = meta?.controls || "Tap to play";
+  const doneMsg = arcade && game?.done
+    ? (game.won ? "Challenge cleared!" : "Challenge over — try again.")
+    : (game?.message || "Done!");
+  const node = el(`
+    <section class="screen practice-play scroll-screen">
+      <header class="practice-play-bar">
+        <button type="button" class="btn btn-ghost" data-action="back">← Challenges</button>
+        <div class="practice-play-titles">
+          <strong>${title}</strong>
+          <span>${controls}</span>
+        </div>
+        <button type="button" class="btn btn-blue" data-action="replay" ${game?.done ? "" : "disabled"}>Play again</button>
+      </header>
+      <p class="practice-play-blurb">${blurb}</p>
+      <div class="practice-stage minigame-board ${arcade ? "arcade-board" : "mg-full-board"}" data-mg></div>
+      ${game?.done ? `
+        <div class="mg-footer practice-done">
+          <p class="mg-msg">${doneMsg}</p>
+          <button type="button" class="btn btn-primary btn-big" data-action="replay">Play again</button>
+        </div>` : ""}
+    </section>
+  `);
+  node.querySelector('[data-action="back"]')?.addEventListener("click", handlers.back);
+  node.querySelectorAll('[data-action="replay"]').forEach((btn) => {
+    btn.addEventListener("click", handlers.replay);
+  });
   return node;
 }
 
@@ -601,7 +665,7 @@ function fillEncounter(panel, state, handlers) {
   }
 }
 
-function renderMinigameBoard(board, game, handlers, enc) {
+export function renderMinigameBoard(board, game, handlers, enc) {
   if (!board) return;
   if (game.type === "dig") {
     board.innerHTML = `

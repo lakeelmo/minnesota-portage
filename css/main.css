@@ -388,6 +388,8 @@ body::before {
 
 .title-cta {
   margin-top: 1.6rem;
+  flex-direction: column;
+  align-items: center;
 }
 
 .title-cast {
@@ -425,6 +427,118 @@ body::before {
 /* legacy title bits (unused but safe) */
 .hero-scene, .title-card, .title-blurb, .tagline { /* kept for safety */ }
 .hero-scene { display: none; }
+
+/* ── Practice challenges (home → hub → play) ── */
+.practice-hub {
+  padding: 1rem 1rem 2rem;
+  max-width: 42rem;
+  margin: 0 auto;
+  width: 100%;
+}
+.practice-card { width: 100%; }
+.practice-head { margin-bottom: 0.85rem; }
+.practice-head .hint { margin: 0.35rem 0 0; }
+.practice-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+@media (min-width: 560px) {
+  .practice-grid { grid-template-columns: 1fr 1fr; }
+}
+.practice-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1.5px solid rgba(31, 77, 58, 0.2);
+  background: linear-gradient(165deg, #fff 0%, #eef6f3 100%);
+  box-shadow: 0 6px 16px rgba(20, 38, 31, 0.08);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.practice-tile:hover,
+.practice-tile:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(47, 111, 143, 0.55);
+  outline: none;
+}
+.practice-icon {
+  font-size: 1.45rem;
+  line-height: 1;
+}
+.practice-title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  color: var(--pine);
+  font-weight: 600;
+}
+.practice-blurb {
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+.practice-play {
+  padding: 0.85rem 1rem 1.5rem;
+  max-width: 40rem;
+  margin: 0 auto;
+  width: 100%;
+}
+.practice-play-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+.practice-play-titles {
+  flex: 1 1 10rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.practice-play-titles strong {
+  font-family: var(--font-display);
+  color: var(--pine);
+  font-size: 1.15rem;
+}
+.practice-play-titles span {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+.practice-play-blurb {
+  margin: 0 0 0.65rem;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.practice-stage {
+  min-height: min(52dvh, 420px);
+  width: 100%;
+}
+.practice-stage.arcade-board,
+.practice-stage.arcade-host {
+  min-height: min(58dvh, 480px);
+}
+.practice-done {
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: rgba(232, 184, 109, 0.28);
+  border: 1px solid rgba(31, 77, 58, 0.15);
+}
+.practice-done .mg-msg {
+  margin: 0 0 0.55rem;
+  color: var(--pine);
+  font-weight: 600;
+}
 
 /* ── Setup / creator ── */
 .setup-grid {

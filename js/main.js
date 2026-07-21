@@ -7,8 +7,9 @@ import {
   clearSave,
   getActivePlayer,
   ensureCpuRival,
-} from "./state.js?v=race13";
-import { CHARACTERS } from "./characters.js?v=race13";
+} from "./state.js?v=race14";
+import { CHARACTERS } from "./characters.js?v=race14";
+import { PRACTICE_GAMES } from "./board.js?v=race14";
 import {
   beginBoard,
   dismissIntro,
@@ -21,18 +22,31 @@ import {
   finishBoardArcade,
   useStoryHint,
   cpuAct,
-} from "./boardgame.js?v=race13";
+} from "./boardgame.js?v=race14";
+import {
+  createDigGame,
+  createMemoryGame,
+  createRiceGame,
+  digAt,
+  flipMemory,
+  unflipMismatches,
+  tickRiceGame,
+  catchRicePod,
+} from "./minigames.js?v=race14";
 import {
   renderTitle,
   renderPartySetup,
   renderCharacterCreator,
   renderTrail,
   renderGameOver,
+  renderPracticeHub,
+  renderPracticePlay,
+  renderMinigameBoard,
   showToast,
   syncTrail,
   syncMinigameOnly,
-} from "./ui.js?v=race13";
-import { mountArcade, isArcadeType } from "./arcade.js?v=race13";
+} from "./ui.js?v=race14";
+import { mountArcade, isArcadeType, ARCADE_META } from "./arcade.js?v=race14";
 
 const app = document.getElementById("app");
 
@@ -45,6 +59,8 @@ let riceTimer = null;
 let cpuTimer = null;
 let arcadeSession = null;
 let hasSave = !!loadRun();
+let practiceId = null;
+let practiceGame = null;
 
 // Drop legacy saves that can revive the old trail / missing CPU
 try {
@@ -66,14 +82,50 @@ function destroyArcade() {
 function mount(node) { app.innerHTML = ""; app.appendChild(node); }
 function arcadePlaying() { return Boolean(arcadeSession); }
 
+function practiceMeta(id) {
+  const catalog = PRACTICE_GAMES.find((g) => g.id === id);
+  const arcade = ARCADE_META[id];
+  return {
+    id,
+    title: catalog?.title || arcade?.title || id,
+    blurb: catalog?.blurb || arcade?.blurb || "",
+    controls: arcade?.controls || (id === "memory" ? "Tap two cards" : id === "rice" ? "Tap ripe 🌾" : id === "dig" ? "Tap squares" : "Tap to play"),
+    kind: catalog?.kind || (isArcadeType(id) ? "arcade" : "grid"),
+  };
+}
+
+function makePracticeGame(id) {
+  if (id === "dig") return createDigGame({ attempts: 6 });
+  if (id === "memory") return createMemoryGame({ pairs: 6 });
+  if (id === "rice") return createRiceGame({ goal: 6, ticks: 40 });
+  return null;
+}
+
+function applyPracticeAction(game, action) {
+  if (!game) return game;
+  if (action.type === "dig") return digAt(game, action.i);
+  if (action.type === "memory-flip") return flipMemory(game, action.id);
+  if (action.type === "memory-unflip") return unflipMismatches(game);
+  if (action.type === "rice-tick") return tickRiceGame(game);
+  if (action.type === "rice-catch") return catchRicePod(game, action.id);
+  return game;
+}
+
+function openPractice(id) {
+  destroyArcade();
+  clearTimers();
+  practiceId = id;
+  practiceGame = isArcadeType(id) ? { type: id, arcade: true, done: false } : makePracticeGame(id);
+  screen = "practice-play";
+  paint({ remount: true });
+}
+
 function scheduleCpu() {
   if (cpuTimer) clearTimeout(cpuTimer);
   cpuTimer = null;
   if (!run || run.gameOver || screen !== "trail") return;
   const p = getActivePlayer(run);
   if (!p?.isCpu) return;
-
-  // Don't fight the arcade AI loop
   if (arcadePlaying()) return;
 
   const enc = run.encounter;
@@ -161,6 +213,108 @@ function trailHandlers() {
   };
 }
 
+function practiceHandlers() {
+  return {
+    back: () => {
+      destroyArcade();
+      clearTimers();
+      practiceId = null;
+      practiceGame = null;
+      screen = "practice";
+      paint({ remount: true });
+    },
+    replay: () => {
+      if (!practiceId) return;
+      openPractice(practiceId);
+    },
+    mg: (action) => {
+      if (!practiceGame || practiceGame.arcade) return;
+      const next = applyPracticeAction(practiceGame, action);
+      if (next?.type === "memory" && next.flipped?.length === 2 && !next.done) {
+        const [a, b] = next.flipped.map((id) => next.cards.find((c) => c.id === id));
+        if (a && b && a.pair !== b.pair) {
+          practiceGame = next;
+          paintPracticeBoard();
+          memoryTimer = setTimeout(() => {
+            practiceGame = applyPracticeAction(practiceGame, { type: "memory-unflip" });
+            paintPracticeBoard();
+          }, 650);
+          return;
+        }
+      }
+      practiceGame = next;
+      if (practiceGame?.done) {
+        clearTimers();
+        showToast(practiceGame.won === false ? "Try again!" : "Nice work!");
+        paint({ remount: true });
+        return;
+      }
+      paintPracticeBoard();
+    },
+  };
+}
+
+function paintPracticeBoard() {
+  const board = app.querySelector(".practice-play [data-mg]");
+  if (!board || !practiceGame || practiceGame.arcade) return;
+  renderMinigameBoard(board, practiceGame, practiceHandlers(), null);
+  const replay = app.querySelector(".practice-play [data-action=replay]");
+  if (replay) replay.disabled = !practiceGame.done;
+  let footer = app.querySelector(".practice-play .practice-done");
+  if (practiceGame.done && !footer) {
+    paint({ remount: true });
+  }
+}
+
+function paintPracticePlay() {
+  const meta = practiceMeta(practiceId);
+  const arcade = meta.kind === "arcade";
+  destroyArcade();
+  clearTimers();
+  mount(renderPracticePlay({ meta, game: practiceGame, arcade }, practiceHandlers()));
+  const board = app.querySelector("[data-mg]");
+  if (!board) return;
+
+  if (arcade) {
+    if (practiceGame?.done) return;
+    showToast("Tap to play — practice mode");
+    arcadeSession = mountArcade(
+      board,
+      practiceId,
+      { difficulty: setup.difficulty || "medium", puzzleMaster: false, weapon: "wooden-spear", strongArms: false, autoPlay: false },
+      (result) => {
+        destroyArcade();
+        showToast(result.won ? "Challenge cleared!" : "Challenge over — try again");
+        practiceGame = { type: practiceId, arcade: true, done: true, won: !!result.won };
+        paint({ remount: true });
+      }
+    );
+    return;
+  }
+
+  renderMinigameBoard(board, practiceGame, practiceHandlers(), null);
+  if (practiceGame?.type === "rice" && !practiceGame.done) {
+    riceTimer = setInterval(() => {
+      if (!practiceGame || practiceGame.type !== "rice") {
+        if (riceTimer) { clearInterval(riceTimer); riceTimer = null; }
+        return;
+      }
+      if (practiceGame.done) {
+        if (riceTimer) { clearInterval(riceTimer); riceTimer = null; }
+        paint({ remount: true });
+        return;
+      }
+      practiceGame = applyPracticeAction(practiceGame, { type: "rice-tick" });
+      paintPracticeBoard();
+      if (practiceGame.done) {
+        if (riceTimer) { clearInterval(riceTimer); riceTimer = null; }
+        showToast(practiceGame.won ? "Bundle full!" : "Harvest over");
+        paint({ remount: true });
+      }
+    }, 700);
+  }
+}
+
 function paintTrail() {
   if (!run) { screen = "title"; paint({ remount: true }); return; }
 
@@ -194,11 +348,13 @@ function paintTrail() {
 }
 
 function paint() {
-  if (arcadePlaying() && screen === "trail") return;
+  if (arcadePlaying() && (screen === "trail" || screen === "practice-play")) return;
 
   if (screen === "title") {
     destroyArcade();
     clearTimers();
+    practiceId = null;
+    practiceGame = null;
     mount(renderTitle(
       () => {
         setup = createEmptySetup();
@@ -219,8 +375,29 @@ function paint() {
           showToast(cpu ? `Welcome back — racing ${cpu.name}` : "Welcome back!");
         }
       },
-      hasSave
+      hasSave,
+      () => {
+        screen = "practice";
+        paint({ remount: true });
+      }
     ));
+    return;
+  }
+
+  if (screen === "practice") {
+    destroyArcade();
+    clearTimers();
+    practiceId = null;
+    practiceGame = null;
+    mount(renderPracticeHub(PRACTICE_GAMES, {
+      pick: (id) => openPractice(id),
+      back: () => { screen = "title"; paint({ remount: true }); },
+    }));
+    return;
+  }
+
+  if (screen === "practice-play") {
+    paintPracticePlay();
     return;
   }
 

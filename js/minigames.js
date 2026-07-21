@@ -1,5 +1,5 @@
-import { shuffle } from "./data.js?v=race13";
-import { PICTOGRAPHS } from "./pictographs.js?v=race13";
+import { shuffle } from "./data.js?v=race14";
+import { PICTOGRAPHS } from "./pictographs.js?v=race14";
 
 /** Archaeology dig: find artifacts in a 4x4 grid. */
 export function createDigGame({ attempts = 5, artifactCount = 4 } = {}) {
