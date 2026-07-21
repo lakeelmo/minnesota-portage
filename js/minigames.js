@@ -1,4 +1,5 @@
-import { shuffle } from "./data.js?v=race10";
+import { shuffle } from "./data.js?v=race13";
+import { PICTOGRAPHS } from "./pictographs.js?v=race13";
 
 /** Archaeology dig: find artifacts in a 4x4 grid. */
 export function createDigGame({ attempts = 5, artifactCount = 4 } = {}) {
@@ -63,16 +64,30 @@ export function digAt(game, index) {
   };
 }
 
-/** Pictograph memory match. */
-export function createMemoryGame({ pairs = 4 } = {}) {
-  const symbols = ["🦅", "🐟", "🌕", "canoe", "🌲", "⚡", "🐻", "🌊"].slice(0, pairs);
-  const display = {
-    canoe: "🛶",
-  };
+/** Pictograph memory match — cliff symbols (not emoji). */
+export function createMemoryGame({ pairs = 6 } = {}) {
+  const count = Math.max(4, Math.min(pairs, PICTOGRAPHS.length));
+  const chosen = shuffle([...PICTOGRAPHS]).slice(0, count);
   const cards = shuffle(
-    symbols.flatMap((s, idx) => [
-      { id: `${idx}-a`, pair: idx, symbol: display[s] || s, flipped: false, matched: false },
-      { id: `${idx}-b`, pair: idx, symbol: display[s] || s, flipped: false, matched: false },
+    chosen.flatMap((p, idx) => [
+      {
+        id: `${p.id}-a`,
+        pair: idx,
+        symbol: p.label,
+        art: p.src,
+        label: p.label,
+        flipped: false,
+        matched: false,
+      },
+      {
+        id: `${p.id}-b`,
+        pair: idx,
+        symbol: p.label,
+        art: p.src,
+        label: p.label,
+        flipped: false,
+        matched: false,
+      },
     ])
   );
   return {
@@ -80,8 +95,9 @@ export function createMemoryGame({ pairs = 4 } = {}) {
     cards,
     flipped: [],
     moves: 0,
+    pairs: count,
     done: false,
-    message: "Match the pictograph pairs!",
+    message: `Match ${count} pictograph pairs on the cliff wall!`,
   };
 }
 

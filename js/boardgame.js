@@ -11,9 +11,9 @@ import {
   bestForwardMove,
   FINISH_ID,
   MINIGAME_POOL,
-} from "./board.js?v=race10";
-import { drawStoryCard } from "./quizdeck.js?v=race10";
-import { DIFFICULTIES, pickRandom, shuffle } from "./data.js?v=race10";
+} from "./board.js?v=race13";
+import { drawStoryCard } from "./quizdeck.js?v=race13";
+import { DIFFICULTIES, pickRandom, shuffle } from "./data.js?v=race13";
 import {
   createDigGame,
   digAt,
@@ -23,10 +23,10 @@ import {
   createRiceGame,
   tickRiceGame,
   catchRicePod,
-} from "./minigames.js?v=race10";
-import { ARCADE_META, isArcadeType } from "./arcade.js?v=race10";
-import { addScore, applyDamage, clamp, getActivePlayer } from "./state.js?v=race10";
-import { QUEST } from "./quest.js?v=race10";
+} from "./minigames.js?v=race13";
+import { ARCADE_META, isArcadeType } from "./arcade.js?v=race13";
+import { addScore, applyDamage, clamp, getActivePlayer } from "./state.js?v=race13";
+import { QUEST } from "./quest.js?v=race13";
 
 export const DIE_FACES = [
   { type: "move", value: 1, label: "1" },
@@ -177,7 +177,8 @@ function challengeEncounter(state, space, fromDice = false) {
   if (type === "dig") {
     game = createDigGame({ attempts: state.difficulty === "hard" ? 4 : 6 });
   } else if (type === "memory") {
-    game = createMemoryGame({ pairs: state.puzzleMaster ? 3 : 4 });
+    const base = state.difficulty === "hard" ? 8 : state.difficulty === "beginner" ? 5 : 6;
+    game = createMemoryGame({ pairs: Math.max(4, base - (state.puzzleMaster ? 1 : 0)) });
   } else if (type === "rice") {
     game = createRiceGame({ goal: state.puzzleMaster ? 5 : 7, ticks: 42 });
   } else if (isArcadeType(type)) {
@@ -190,6 +191,7 @@ function challengeEncounter(state, space, fromDice = false) {
     rice: "Manoomin Harvest",
     memory: "Cliff Memory",
     dig: "Careful Dig",
+    hunt: ARCADE_META.hunt?.title,
     portage: ARCADE_META.portage?.title,
     forage: ARCADE_META.forage?.title,
   };

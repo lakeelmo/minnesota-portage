@@ -70,7 +70,7 @@ export const BOARD = [
 ];
 
 export const FINISH_ID = "council";
-export const MINIGAME_POOL = ["rice", "memory", "dig", "portage", "forage"];
+export const MINIGAME_POOL = ["rice", "memory", "dig", "portage", "forage", "hunt"];
 
 export function getSpace(id) {
   return BOARD.find((s) => s.id === id) || null;

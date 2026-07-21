@@ -7,8 +7,8 @@ import {
   clearSave,
   getActivePlayer,
   ensureCpuRival,
-} from "./state.js?v=race10";
-import { CHARACTERS } from "./characters.js?v=race10";
+} from "./state.js?v=race13";
+import { CHARACTERS } from "./characters.js?v=race13";
 import {
   beginBoard,
   dismissIntro,
@@ -21,7 +21,7 @@ import {
   finishBoardArcade,
   useStoryHint,
   cpuAct,
-} from "./boardgame.js?v=race10";
+} from "./boardgame.js?v=race13";
 import {
   renderTitle,
   renderPartySetup,
@@ -31,8 +31,8 @@ import {
   showToast,
   syncTrail,
   syncMinigameOnly,
-} from "./ui.js?v=race10";
-import { mountArcade, isArcadeType } from "./arcade.js?v=race10";
+} from "./ui.js?v=race13";
+import { mountArcade, isArcadeType } from "./arcade.js?v=race13";
 
 const app = document.getElementById("app");
 
@@ -319,7 +319,7 @@ function maybeStartArcade() {
   if (!board || arcadeSession) return;
 
   const cpu = !!getActivePlayer(run)?.isCpu;
-  if (!cpu) showToast("Enter to start · Arrows move · Space action · Click also works");
+  if (!cpu) showToast("Use on-screen buttons — tap the game to start");
   else showToast("CPU is playing this challenge — watch closely");
 
   arcadeSession = mountArcade(
@@ -338,11 +338,6 @@ function maybeStartArcade() {
       update(finishBoardArcade(run, result));
     }
   );
-  const canvas = board.querySelector("canvas");
-  if (canvas) {
-    canvas.width = Math.min(960, Math.floor(window.innerWidth * 0.7));
-    canvas.height = Math.min(540, Math.floor(window.innerHeight * 0.55));
-  }
 }
 
 function update(next) {

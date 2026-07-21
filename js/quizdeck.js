@@ -3,7 +3,7 @@
  * Distractors are plausible misconceptions (same topic), not silly throwaways.
  */
 
-import { shuffle, shuffleChoices } from "./data.js?v=race10";
+import { shuffle, shuffleChoices } from "./data.js?v=race13";
 
 export const STORY_DECK = [
   {

@@ -1,12 +1,13 @@
-import { CHARACTERS, SUPERPOWERS, renderPortrait } from "./characters.js?v=race10";
-import { DIFFICULTIES } from "./data.js?v=race10";
-import { getActivePlayer } from "./state.js?v=race10";
-import { BOARD, getSpace } from "./board.js?v=race10";
-import { deckRemaining } from "./quizdeck.js?v=race10";
-import { QUEST } from "./quest.js?v=race10";
-import { ARCADE_META, isArcadeType } from "./arcade.js?v=race10";
-import { linkNativeWords, bindSayButtons, unlockAudio } from "./audio.js?v=race10";
-import { legalMoves, playerPosition } from "./boardgame.js?v=race10";
+import { CHARACTERS, SUPERPOWERS, renderPortrait } from "./characters.js?v=race13";
+import { DIFFICULTIES } from "./data.js?v=race13";
+import { getActivePlayer } from "./state.js?v=race13";
+import { BOARD, getSpace } from "./board.js?v=race13";
+import { deckRemaining } from "./quizdeck.js?v=race13";
+import { QUEST } from "./quest.js?v=race13";
+import { ARCADE_META, isArcadeType } from "./arcade.js?v=race13";
+import { linkNativeWords, bindSayButtons, unlockAudio } from "./audio.js?v=race13";
+import { legalMoves, playerPosition } from "./boardgame.js?v=race13";
+import { artForTopic, playerLabel } from "./labels.js?v=race13";
 
 export function el(html) {
   const t = document.createElement("template");
@@ -200,10 +201,12 @@ function renderBoardSvg(state) {
     const sp = getSpace(p.position || "start");
     if (!sp) return "";
     const isActive = i === state.activePlayer;
-    const color = p.isCpu ? "#1a4a63" : "#c45c4a";
-    const label = p.isCpu ? "CPU" : "YOU";
-    const offsetX = state.players.length > 1 ? (i === 0 ? -16 : 16) : 0;
-    const offsetY = state.players.length > 1 ? (i === 0 ? -10 : 10) : -6;
+    const color = p.isCpu ? "#1a4a63" : (i === 0 ? "#c45c4a" : i === 1 ? "#2f6f8f" : i === 2 ? "#6a8f4e" : "#b86b3c");
+    const label = playerLabel(p, 8);
+    const n = state.players.length;
+    const offsetX = n > 1 ? (i % 2 === 0 ? -16 : 16) : 0;
+    const offsetY = n > 2 ? (i < 2 ? -12 : 12) : (n > 1 ? (i === 0 ? -10 : 10) : -6);
+    const flagW = Math.max(44, label.length * 7.2);
     return `
       <g class="player-token ${isActive ? "token-active" : "token-idle"}" data-token="${p.id}"
          transform="translate(${sp.x + offsetX}, ${sp.y + offsetY})">
@@ -211,7 +214,7 @@ function renderBoardSvg(state) {
         <circle class="player-pawn" r="18" style="fill:${color}" />
         <text class="player-mark" y="6" text-anchor="middle">${p.isCpu ? "🤖" : "⭐"}</text>
         <g class="player-flag" transform="translate(0, -28)">
-          <rect x="-22" y="-12" width="44" height="20" rx="10" style="fill:${color}" />
+          <rect x="${-flagW / 2}" y="-12" width="${flagW}" height="20" rx="10" style="fill:${color}" />
           <text y="3" text-anchor="middle">${label}</text>
         </g>
       </g>`;
@@ -269,7 +272,7 @@ export function syncTrail(root, state, handlers) {
   const who = root.querySelector(".hud-who strong");
   if (who) who.textContent = `${active?.name || "Traveler"}${active?.isCpu ? "" : ""}`;
   const sub = root.querySelector(".hud-sub");
-  if (sub) sub.textContent = `${space?.name || "…"} · ${active?.isCpu ? "CPU turn" : state.turnPhase}`;
+  if (sub) sub.textContent = `${space?.name || "…"} · ${active?.isCpu ? `${playerLabel(active)}'s turn` : state.turnPhase}`;
 
   const setMeter = (cls, value, max) => {
     const fill = root.querySelector(`.${cls} .meter-fill`);
@@ -288,7 +291,7 @@ export function syncTrail(root, state, handlers) {
       <span>📜 ${remaining}</span>
       <span>${(state.players || []).map((p) => {
         const pr = getSpace(p.position)?.progress ?? 0;
-        return `${p.isCpu ? "🤖" : "🧑"}${pr}`;
+        return `${p.isCpu ? "🤖" : "🧑"}${playerLabel(p, 6)} ${pr}`;
       }).join(" · ")}</span>`;
   }
 
@@ -430,7 +433,7 @@ export function renderTrail(state, handlers) {
         <div class="hud-scores">
           <span>⭐ ${state.score || 0}</span>
           <span>📜 ${remaining}</span>
-          <span>${(state.players || []).map((p) => `${p.isCpu ? "🤖" : "🧑"}${getSpace(p.position)?.progress ?? 0}`).join(" · ")}</span>
+          <span>${(state.players || []).map((p) => `${p.isCpu ? "🤖" : "🧑"}${playerLabel(p, 6)} ${getSpace(p.position)?.progress ?? 0}`).join(" · ")}</span>
         </div>
       </header>
       <div class="board-layout">
@@ -441,10 +444,11 @@ export function renderTrail(state, handlers) {
         <aside class="board-side">
           <div class="dice-panel">
             <div class="dice-face" aria-live="polite">${state.diceFace?.label || "—"}</div>
-            <button class="btn btn-primary btn-big" data-a="roll" ${state.turnPhase === "roll" && !state.encounter && !active?.isCpu ? "" : "disabled"}>
+            <button type="button" class="btn btn-primary btn-big dice-roll-btn" data-a="roll"
+              ${state.turnPhase === "roll" && !state.encounter && !active?.isCpu ? "" : "disabled"}>
               🎲 Roll
             </button>
-            <p class="hint dice-hint">Faces: 1 · 2 · 3 · 🎮 (~2 in 5)</p>
+            <p class="hint dice-hint">1 · 2 · 3 · 🎮</p>
           </div>
           <div class="side-space">
             <h3>${space?.icon || ""} ${space?.name || ""}</h3>
@@ -460,7 +464,16 @@ export function renderTrail(state, handlers) {
     </section>
   `);
 
-  node.querySelector('[data-a="roll"]')?.addEventListener("click", handlers.roll);
+  const rollBtn = node.querySelector('[data-a="roll"]');
+  if (rollBtn) {
+    const onRoll = (e) => {
+      e.preventDefault();
+      if (rollBtn.disabled) return;
+      handlers.roll();
+    };
+    rollBtn.addEventListener("click", onRoll);
+    rollBtn.addEventListener("touchend", onRoll, { passive: false });
+  }
   node.querySelector('[data-a="exit"]')?.addEventListener("click", handlers.exit);
   bindMoveNodes(node, handlers);
   if (state.encounter) fillEncounter(node.querySelector("#encounter"), state, handlers);
@@ -485,46 +498,48 @@ function fillEncounter(panel, state, handlers) {
 
   if (enc.kind === "story-card") {
     const c = enc.card;
+    const art = artForTopic(c.topic, enc.space);
+    const who = playerLabel(active, 14);
     panel.innerHTML = `
-      <div class="quiz-layout">
-        <div class="quiz-split">
-          <div class="quiz-answers-pane">
-            <p class="pane-label">${cpuLock ? (enc.answered ? "CPU answered" : enc.cpuFocus != null ? "CPU picks…" : "CPU is reading…") : enc.answered ? "Your answers" : "Choose an answer"}</p>
-            <div class="quiz-options quiz-stack">
-              ${c.choices.map((t, i) => {
-                let cls = "btn quiz-option";
-                if (enc.answered) {
-                  if (i === c.answer) cls += " correct";
-                  else if (i === enc.picked) cls += " wrong";
-                } else if (cpuLock && enc.cpuFocus === i) {
-                  cls += " cpu-focus";
-                }
-                return `<button class="${cls}" data-i="${i}" ${enc.answered || cpuLock ? "disabled" : ""}><span class="opt-letter">${String.fromCharCode(65 + i)}</span><span class="opt-text">${t}</span></button>`;
-              }).join("")}
-            </div>
-            ${!enc.answered && !cpuLock && state.hintsLeft > 0 ? `<button class="btn btn-purple hint-btn" data-a="hint">💡 Hint (${state.hintsLeft})</button>` : ""}
-            ${enc.hintShown && !enc.answered ? `<p class="hint hint-inline">💡 ${c.hint}</p>` : ""}
-          </div>
-          <div class="quiz-question-pane">
-            <p class="card-topic">${c.topic || "Trail question"}</p>
-            <h2 class="card-title">${enc.title}</h2>
-            <p class="quiz-q">${c.q}</p>
-            ${enc.answered ? `<p class="learn-box compact-teach">${linkNativeWords(c.teach)}</p>` : ""}
-            <p class="quiz-space-tag">${enc.space?.icon || ""} ${enc.space?.name || ""}</p>
-          </div>
+      <div class="quiz-card">
+        <header class="quiz-card-top">
+          <p class="card-topic">${c.topic || "Trail question"}</p>
+          <p class="quiz-who">${cpuLock ? `🤖 ${who}` : who}</p>
+        </header>
+        <div class="quiz-art" style="background-image:url('${art}')" role="img" aria-label="${c.topic || "Valley scene"}">
+          <span class="quiz-art-icon">${enc.space?.icon || "📜"}</span>
         </div>
+        <h2 class="quiz-q">${c.q}</h2>
+        ${enc.answered ? `<p class="learn-box compact-teach">${linkNativeWords(c.teach)}</p>` : ""}
+        <p class="pane-label">${cpuLock ? (enc.answered ? `${who} answered` : enc.cpuFocus != null ? `${who} picks…` : `${who} is reading…`) : enc.answered ? "Result" : "Choose an answer"}</p>
+        <div class="quiz-options quiz-stack">
+          ${c.choices.map((t, i) => {
+            let cls = "btn quiz-option";
+            if (enc.answered) {
+              if (i === c.answer) cls += " correct";
+              else if (i === enc.picked) cls += " wrong";
+            } else if (cpuLock && enc.cpuFocus === i) {
+              cls += " cpu-focus";
+            }
+            return `<button type="button" class="${cls}" data-i="${i}" ${enc.answered || cpuLock ? "disabled" : ""}><span class="opt-letter">${String.fromCharCode(65 + i)}</span><span class="opt-text">${t}</span></button>`;
+          }).join("")}
+        </div>
+        ${!enc.answered && !cpuLock && state.hintsLeft > 0 ? `<button type="button" class="btn btn-purple hint-btn" data-a="hint">💡 Hint (${state.hintsLeft})</button>` : ""}
+        ${enc.hintShown && !enc.answered ? `<p class="hint hint-inline">💡 ${c.hint}</p>` : ""}
         <div class="quiz-footer">
-          <button class="btn btn-primary btn-big" data-a="next"
+          <button type="button" class="btn btn-primary btn-big" data-a="next"
             ${!enc.answered || cpuLock ? "disabled" : ""}
             ${!enc.answered ? 'aria-hidden="true"' : ""}>
-            ${cpuLock && enc.answered ? "CPU continuing…" : enc.answered ? "Continue →" : "Pick an answer"}
+            ${cpuLock && enc.answered ? `${who} continuing…` : enc.answered ? "Continue →" : "Tap an answer"}
           </button>
         </div>
       </div>
     `;
     if (!enc.answered && !cpuLock) {
       panel.querySelectorAll("[data-i]").forEach((btn) => {
-        btn.onclick = () => handlers.storyAnswer(Number(btn.dataset.i));
+        const go = () => handlers.storyAnswer(Number(btn.dataset.i));
+        btn.addEventListener("click", go);
+        btn.addEventListener("touchend", (e) => { e.preventDefault(); go(); }, { passive: false });
       });
       panel.querySelector("[data-a=hint]")?.addEventListener("click", handlers.storyHint);
     } else if (enc.answered && !cpuLock) {
@@ -546,14 +561,14 @@ function fillEncounter(panel, state, handlers) {
         <header class="mg-full-head">
           ${cpuLock ? `<p class="pane-label cpu-live">🤖 ${active?.name || "CPU"} is playing</p>` : ""}
           <h2>${title}</h2>
-          <p class="mg-controls">${cpuLock ? "Watch the CPU attempt this challenge" : (enc.controls || meta?.controls || "Use arrow keys and mouse clicks")}</p>
+          <p class="mg-controls">${cpuLock ? "Watch them play" : (enc.controls || meta?.controls || "Tap the game")}</p>
           <p class="mg-blurb">${blurb}</p>
         </header>
         <div class="minigame-board mg-full-board ${arcade ? "arcade-board" : ""}" data-mg data-arcade="${arcade ? game.type : ""}"></div>
         ${!arcade && game.done ? `
           <div class="mg-footer">
             <button class="btn btn-primary btn-big" data-a="done" ${cpuLock ? "disabled" : ""}>
-              ${cpuLock ? "CPU finishing…" : "Continue →"}
+              ${cpuLock ? "Finishing…" : "Continue →"}
             </button>
           </div>` : ""}
       </div>
@@ -563,7 +578,7 @@ function fillEncounter(panel, state, handlers) {
       renderMinigameBoard(board, game, handlers, enc);
       if (!cpuLock) panel.querySelector("[data-a=done]")?.addEventListener("click", handlers.minigameDone);
     } else {
-      board.innerHTML = `<div class="arcade-placeholder"><p>${cpuLock ? "CPU starting challenge…" : "Click the game area"}</p><p><kbd>Enter</kbd> start · <kbd>←→↑↓</kbd> move · <kbd>Space</kbd> action</p></div>`;
+      board.innerHTML = `<div class="arcade-placeholder"><p>${cpuLock ? "Starting…" : "Tap to play"}</p></div>`;
     }
     return;
   }
@@ -606,17 +621,21 @@ function renderMinigameBoard(board, game, handlers, enc) {
   } else if (game.type === "memory") {
     board.innerHTML = `
       <p class="mg-msg">${game.message}</p>
-      <div class="memory-grid memory-grid-lg">
+      <div class="memory-grid memory-grid-lg" style="--mem-cols:${Math.ceil(Math.sqrt(game.cards.length * 1.1))}">
         ${game.cards.map((c) => `
-          <button class="memory-card ${c.flipped || c.matched ? "flipped" : ""} ${c.matched ? "matched" : ""}"
-            data-mem="${c.id}" ${c.matched || game.done ? "disabled" : ""}>
-            ${c.flipped || c.matched ? c.symbol : "❔"}
+          <button type="button" class="memory-card ${c.flipped || c.matched ? "flipped" : ""} ${c.matched ? "matched" : ""}"
+            data-mem="${c.id}" ${c.matched || game.done ? "disabled" : ""} aria-label="${c.flipped || c.matched ? c.label : "Hidden pictograph"}">
+            ${c.flipped || c.matched
+              ? `<img class="mem-art" src="${c.art}" alt="${c.label}" draggable="false" />`
+              : `<span class="mem-back" aria-hidden="true">◼</span>`}
           </button>`).join("")}
       </div>
-      <p class="hint">Click two cards to match</p>
+      <p class="hint">Tap two cards · ${game.pairs || Math.floor(game.cards.length / 2)} pairs · Moves ${game.moves || 0}</p>
     `;
     board.querySelectorAll("[data-mem]").forEach((btn) => {
-      btn.onclick = () => handlers.mg({ type: "memory-flip", id: btn.dataset.mem });
+      const flip = () => handlers.mg({ type: "memory-flip", id: btn.dataset.mem });
+      btn.addEventListener("click", flip);
+      btn.addEventListener("touchend", (e) => { e.preventDefault(); flip(); }, { passive: false });
     });
   } else if (game.type === "rice") {
     board.innerHTML = `
